@@ -440,6 +440,17 @@
                     <div class="stat-value" id="processed-projects">0</div>
                     <div class="stat-label">Unique projects seen</div>
                 </div>
+
+                <div class="card fade-in">
+                    <h2>
+                        <svg class="icon" viewBox="0 0 24 24">
+                            <path fill="currentColor" d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                        </svg>
+                        Elite Bids
+                    </h2>
+                    <div class="stat-value" id="elite-bids">0</div>
+                    <div class="stat-label"><span id="elite-percentage">0%</span> of total bids</div>
+                </div>
             </div>
 
             <div class="dashboard">
@@ -603,6 +614,11 @@
                 updateStatWithAnimation('bids-today', data.stats.bids_today);
                 updateStatWithAnimation('success-rate', `${data.stats.success_rate.toFixed(1)}%`);
                 updateStatWithAnimation('processed-projects', data.stats.processed_projects);
+                updateStatWithAnimation('elite-bids', data.stats.elite_bids || 0);
+                
+                // Update elite percentage
+                const elitePercentage = data.stats.elite_percentage || 0;
+                document.getElementById('elite-percentage').textContent = `${elitePercentage.toFixed(1)}%`;
 
                 // Update account info
                 if (data.account && !data.account.error) {

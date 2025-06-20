@@ -1,0 +1,40 @@
+{
+  "bidding": {
+    "delivery_days": 4,
+    "min_bid_delay_seconds": 5,
+    "bid_multiplier_regular": 1.15,
+    "bid_multiplier_elite": 1.2,
+    "default_bid_regular": 100,
+    "default_bid_elite": 150
+  },
+  
+  "elite_projects": {
+    "auto_sign_nda": true,
+    "auto_sign_ip_agreement": true,
+    "track_elite_stats": true
+  },
+  
+  "filtering": {
+    "max_projects_per_cycle": 50,
+    "skip_projects_with_bids_above": 100,
+    "min_budget": 30,
+    "max_budget": 50000,
+    "blocked_keywords": [],
+    "preferred_skills": []
+  },
+  
+  "monitoring": {
+    "check_interval_seconds": 30,
+    "error_retry_delay_seconds": 300,
+    "max_consecutive_errors": 5,
+    "daily_bid_limit": 300,
+    "delay_between_bids_seconds": 2
+  },
+  
+  "notifications": {
+    "log_elite_projects": true,
+    "log_nda_signing": true,
+    "log_ip_signing": true,
+    "log_bid_statistics": true
+  }
+}

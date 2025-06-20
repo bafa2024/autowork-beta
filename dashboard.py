@@ -44,8 +44,11 @@ def get_bot_stats():
             stats = {
                 'total_bids': int(redis_client.get('total_bids') or 0),
                 'bids_today': int(redis_client.get('bids_today') or 0),
+                'elite_bids': int(redis_client.get('elite_bids') or 0),
+                'elite_percentage': float(redis_client.get('elite_percentage') or 0),
                 'last_bid_time': redis_client.get('last_bid_time') or 'Never',
                 'bot_status': redis_client.get('bot_status') or 'Unknown',
+                'bot_mode': redis_client.get('bot_mode') or 'Standard',
                 'processed_projects': int(redis_client.get('processed_projects_count') or 0),
                 'uptime': redis_client.get('bot_uptime') or 'Unknown',
                 'last_error': redis_client.get('last_error') or 'None',
@@ -69,8 +72,11 @@ def get_bot_stats():
     return {
         'total_bids': 0,
         'bids_today': 0,
+        'elite_bids': 0,
+        'elite_percentage': 0,
         'last_bid_time': 'Not available',
         'bot_status': 'Redis not connected',
+        'bot_mode': 'Unknown',
         'processed_projects': 0,
         'uptime': 'Unknown',
         'last_error': 'None',
