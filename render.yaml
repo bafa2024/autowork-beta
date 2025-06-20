@@ -1,0 +1,36 @@
+services:
+  # Web service for monitoring dashboard
+  - type: web
+    name: autowork-dashboard
+    env: python
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "gunicorn web_server:app"
+    envVars:
+      - key: FREELANCER_OAUTH_TOKEN
+        sync: false
+      - key: FREELANCER_USER_ID
+        value: 45214417
+    
+  # Background worker for the main bot
+  - type: worker
+    name: autowork-bot
+    env: python
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python cron_monitor.py"
+    envVars:
+      - key: FREELANCER_OAUTH_TOKEN
+        sync: false
+      - key: FREELANCER_USER_ID
+        value: 45214417
+      - key: AUTO_BID_ENABLED
+        value: true
+      - key: CHECK_INTERVAL
+        value: 15
+
+  # Cron job for periodic tasks
+  - type: cron
+    name: autowork-stats
+    env: python
+    schedule: "0 * * * *"  # Every hour
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python scripts/setup.py --stats"
