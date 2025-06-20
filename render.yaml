@@ -7,8 +7,12 @@ services:
     startCommand: "python cron_monitor.py"
     envVars:
       - key: FREELANCER_OAUTH_TOKEN
-        sync: false
+        sync: false  # This means you need to set it manually in Render dashboard
       - key: FREELANCER_USER_ID
-        value: 45214417
+        value: "45214417"
       - key: PYTHON_VERSION
-        value: 3.11.7
+        value: "3.11.7"
+      - key: PYTHONUNBUFFERED
+        value: "1"  # Ensures logs are shown immediately
+      - key: TZ
+        value: "UTC"  # Timezone

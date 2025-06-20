@@ -1,2 +1,2 @@
-# Core only - no external dependencies needed for minimal version
+requests==2.31.0
 python-dotenv==1.0.0
