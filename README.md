@@ -1,21 +1,30 @@
-# AutoWork Freelancer Bot
+# AutoWork Freelancer Bot - Minimal Version
 
-An automated bidding bot for Freelancer.com that monitors projects in real-time and places bids based on skill matching.
+A lightweight automated bidding bot for Freelancer.com with no external dependencies.
 
 ## Features
 
 - 🤖 Real-time project monitoring
-- 🎯 Automatic skill-based bidding
-- 📊 No filters - bids on all matching projects
+- 🎯 Automatic bidding on ALL matching projects
+- 📊 No filters - maximum opportunity
 - 🔄 Rate limit protection
-- 📈 Performance statistics
-- ☁️ Cloud-ready deployment
+- ☁️ Render cloud-ready
 
-## Setup
+## Quick Start
 
-### Local Development
+### Local Setup
 
-1. Clone the repository:
 ```bash
+# Clone the repository
 git clone https://github.com/yourusername/autowork-freelancer-bot.git
 cd autowork-freelancer-bot
+
+# Install minimal dependencies
+pip install -r requirements.txt
+
+# Create .env file
+cp .env.example .env
+# Edit .env and add your Freelancer OAuth token
+
+# Run the bot
+python autowork_minimal.py
