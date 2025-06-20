@@ -7,12 +7,40 @@ services:
     startCommand: "python cron_monitor.py"
     envVars:
       - key: FREELANCER_OAUTH_TOKEN
-        sync: false  # This means you need to set it manually in Render dashboard
+        sync: false  # Set manually in Render dashboard
       - key: FREELANCER_USER_ID
         value: "45214417"
       - key: PYTHON_VERSION
         value: "3.11.7"
       - key: PYTHONUNBUFFERED
-        value: "1"  # Ensures logs are shown immediately
+        value: "1"
       - key: TZ
-        value: "UTC"  # Timezone
+        value: "UTC"
+      - key: REDIS_URL
+        fromDatabase:
+          name: autowork-redis
+          property: connectionString
+
+  # Web service for the dashboard
+  - type: web
+    name: autowork-dashboard
+    env: python
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python dashboard.py"
+    envVars:
+      - key: FREELANCER_OAUTH_TOKEN
+        sync: false  # Set manually in Render dashboard
+      - key: FREELANCER_USER_ID
+        value: "45214417"
+      - key: PYTHON_VERSION
+        value: "3.11.7"
+      - key: REDIS_URL
+        fromDatabase:
+          name: autowork-redis
+          property: connectionString
+
+databases:
+  # Redis instance for sharing data between worker and dashboard
+  - name: autowork-redis
+    plan: starter  # Free tier
+    maxmemoryPolicy: allkeys-lru

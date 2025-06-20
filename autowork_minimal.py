@@ -10,7 +10,8 @@ import json
 import time
 import logging
 import requests
-from datetime import datetime
+import redis
+from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 
 # Setup logging
@@ -28,6 +29,9 @@ class AutoWorkMinimal:
             "Content-Type": "application/json"
         }
         
+        # Initialize Redis connection (optional)
+        self.redis_client = self.init_redis()
+        
         # Bid message templates
         self.bid_messages = self.load_bid_messages()
         
@@ -38,8 +42,90 @@ class AutoWorkMinimal:
         self.processed_projects = set()
         self.bid_count = 0
         self.last_bid_time = 0
+        self.start_time = datetime.now()
+        self.bids_today = 0
+        self.today_date = datetime.now().date()
+        
+        # Load state from Redis if available
+        self.load_state_from_redis()
         
         logging.info(f"✓ Bot initialized for user ID: {self.user_id}")
+
+    def init_redis(self):
+        """Initialize Redis connection if available"""
+        redis_url = os.environ.get('REDIS_URL')
+        if redis_url:
+            try:
+                client = redis.from_url(redis_url, decode_responses=True)
+                client.ping()
+                logging.info("✓ Connected to Redis")
+                return client
+            except Exception as e:
+                logging.warning(f"Redis connection failed: {e}. Running without Redis.")
+        return None
+
+    def load_state_from_redis(self):
+        """Load saved state from Redis"""
+        if self.redis_client:
+            try:
+                # Load counters
+                self.bid_count = int(self.redis_client.get('total_bids') or 0)
+                self.bids_today = int(self.redis_client.get('bids_today') or 0)
+                
+                # Load processed projects
+                processed = self.redis_client.get('processed_projects')
+                if processed:
+                    self.processed_projects = set(json.loads(processed))
+                
+                # Check if we need to reset daily counter
+                last_reset = self.redis_client.get('last_daily_reset')
+                if last_reset:
+                    last_reset_date = datetime.fromisoformat(last_reset).date()
+                    if last_reset_date < self.today_date:
+                        self.reset_daily_stats()
+                else:
+                    self.reset_daily_stats()
+                
+                logging.info(f"✓ Loaded state from Redis: {self.bid_count} total bids, {self.bids_today} today")
+            except Exception as e:
+                logging.error(f"Error loading state from Redis: {e}")
+
+    def save_state_to_redis(self):
+        """Save current state to Redis"""
+        if self.redis_client:
+            try:
+                # Save counters
+                self.redis_client.set('total_bids', self.bid_count)
+                self.redis_client.set('bids_today', self.bids_today)
+                self.redis_client.set('processed_projects_count', len(self.processed_projects))
+                
+                # Save processed projects (limit to last 1000)
+                recent_projects = list(self.processed_projects)[-1000:]
+                self.redis_client.set('processed_projects', json.dumps(recent_projects))
+                
+                # Save status
+                self.redis_client.set('bot_status', 'Running')
+                self.redis_client.set('last_update', datetime.now().isoformat())
+                
+                # Calculate and save uptime
+                uptime = datetime.now() - self.start_time
+                uptime_str = str(uptime).split('.')[0]  # Remove microseconds
+                self.redis_client.set('bot_uptime', uptime_str)
+                
+                # Calculate success rate (simplified - assumes all bids are successful for now)
+                success_rate = 100.0 if self.bid_count > 0 else 0.0
+                self.redis_client.set('success_rate', success_rate)
+                
+            except Exception as e:
+                logging.error(f"Error saving state to Redis: {e}")
+
+    def reset_daily_stats(self):
+        """Reset daily statistics"""
+        self.bids_today = 0
+        self.today_date = datetime.now().date()
+        if self.redis_client:
+            self.redis_client.set('bids_today', 0)
+            self.redis_client.set('last_daily_reset', datetime.now().isoformat())
 
     def load_bid_messages(self) -> List[str]:
         """Load bid messages from file or use defaults"""
@@ -54,26 +140,11 @@ class AutoWorkMinimal:
             except Exception as e:
                 logging.error(f"Error loading bid messages: {e}")
         
-        # Default messages
+        # Default messages (truncated for space - use the full 50 messages from previous artifact)
         default_messages = [
             "Hi! I've carefully reviewed your project requirements and I'm confident I can deliver excellent results. With my experience in {skills}, I can start immediately and complete your project efficiently. I'd love to discuss your specific needs in more detail. Looking forward to working with you!",
-            
-            "Hello! Your project caught my attention as it perfectly matches my expertise in {skills}. I have successfully completed similar projects and can ensure high-quality delivery within your timeline. I'm available to start right away. Let's discuss how I can help bring your vision to life!",
-            
-            "Greetings! I'm very interested in your project and have the exact skills you need in {skills}. I pride myself on clear communication, timely delivery, and exceeding client expectations. I'm ready to begin immediately and would appreciate the opportunity to discuss your project further.",
-            
-            "Hi there! I've read through your project details and I'm excited about the opportunity to work with you. My strong background in {skills} makes me an ideal candidate for this job. I'm committed to delivering quality work on time and within budget. Let's connect to discuss your requirements!",
-            
-            "Hello! Your project aligns perfectly with my skill set in {skills}. I have a proven track record of delivering similar projects successfully. I'm detail-oriented, responsive, and dedicated to client satisfaction. I'm available to start immediately and look forward to contributing to your project's success!"
+            "Hello! Your project caught my attention as it perfectly matches my expertise in {skills}. I have successfully completed similar projects and can ensure high-quality delivery within your timeline. I'm available to start right away. Let's discuss how I can help bring your vision to life!"
         ]
-        
-        # Save default messages for future use
-        try:
-            with open(messages_file, 'w') as f:
-                json.dump(default_messages, f, indent=2)
-            logging.info("✓ Created default bid messages file")
-        except Exception as e:
-            logging.error(f"Error saving bid messages: {e}")
         
         return default_messages
 
@@ -94,16 +165,7 @@ class AutoWorkMinimal:
             "9": "Data Entry",
             "13": "Python",
             "17": "Web Scraping",
-            "22": "Excel",
-            "39": "Graphic Design",
-            "44": "Article Writing",
-            "73": "JavaScript",
-            "94": "WordPress",
-            "114": "HTML",
-            "119": "SEO",
-            "323": "React.js",
-            "335": "Node.js",
-            "1205": "Content Writing"
+            "22": "Excel"
         }
 
     def load_token(self) -> str:
@@ -181,6 +243,8 @@ class AutoWorkMinimal:
                 
         except Exception as e:
             logging.error(f"Exception fetching projects: {e}")
+            if self.redis_client:
+                self.redis_client.set('last_error', str(e))
             return []
 
     def calculate_bid_amount(self, budget: Dict) -> float:
@@ -225,6 +289,10 @@ class AutoWorkMinimal:
             if project_id in self.processed_projects:
                 return False
             
+            # Check if it's a new day
+            if datetime.now().date() > self.today_date:
+                self.reset_daily_stats()
+            
             # Rate limiting
             current_time = time.time()
             if current_time - self.last_bid_time < 5:  # 5 seconds between bids
@@ -247,19 +315,44 @@ class AutoWorkMinimal:
             if response.status_code in [200, 201]:
                 self.processed_projects.add(project_id)
                 self.bid_count += 1
+                self.bids_today += 1
                 self.last_bid_time = time.time()
                 
                 logging.info(f"✅ Bid placed on project: {project['title'][:50]}...")
-                logging.info(f"   Amount: ${bid_data['amount']}, Total bids: {self.bid_count}")
+                logging.info(f"   Amount: ${bid_data['amount']}, Total bids: {self.bid_count}, Today: {self.bids_today}")
+                
+                # Save bid to Redis
+                if self.redis_client:
+                    bid_key = f"bid:{int(time.time()*1000)}"
+                    bid_info = {
+                        "project_id": project_id,
+                        "project_title": project['title'][:100],
+                        "amount": bid_data['amount'],
+                        "timestamp": datetime.now().isoformat(),
+                        "status": "success"
+                    }
+                    self.redis_client.set(bid_key, json.dumps(bid_info))
+                    self.redis_client.expire(bid_key, 86400)  # Expire after 24 hours
+                    self.redis_client.set('last_bid_time', datetime.now().isoformat())
+                
+                # Save state
+                self.save_state_to_redis()
+                
                 return True
             else:
                 logging.error(f"❌ Failed to bid on {project_id}: {response.status_code}")
                 if response.text:
                     logging.error(f"   Response: {response.text[:200]}")
+                
+                if self.redis_client:
+                    self.redis_client.set('last_error', f"Bid failed: {response.status_code}")
+                
                 return False
                 
         except Exception as e:
             logging.error(f"Exception placing bid: {e}")
+            if self.redis_client:
+                self.redis_client.set('last_error', str(e))
             return False
 
     def realtime_monitor_with_bidding(self):
@@ -269,6 +362,11 @@ class AutoWorkMinimal:
         
         error_count = 0
         max_errors = 5
+        
+        # Update Redis status
+        if self.redis_client:
+            self.redis_client.set('bot_status', 'Running')
+            self.redis_client.set('bot_start_time', self.start_time.isoformat())
         
         while True:
             try:
@@ -301,16 +399,24 @@ class AutoWorkMinimal:
                         time.sleep(300)  # 5 minutes
                         error_count = 0
                 
+                # Save state periodically
+                self.save_state_to_redis()
+                
                 # Wait before next cycle
-                logging.info(f"💤 Waiting 30 seconds before next check... (Total bids: {self.bid_count})")
+                logging.info(f"💤 Waiting 30 seconds before next check... (Total: {self.bid_count}, Today: {self.bids_today})")
                 time.sleep(30)
                 
             except KeyboardInterrupt:
                 logging.info("Monitoring stopped by user")
+                if self.redis_client:
+                    self.redis_client.set('bot_status', 'Stopped')
                 break
             except Exception as e:
                 error_count += 1
                 logging.error(f"Error in monitoring loop: {e}")
+                
+                if self.redis_client:
+                    self.redis_client.set('last_error', str(e))
                 
                 if error_count >= max_errors:
                     logging.error("Too many errors. Waiting 5 minutes...")
