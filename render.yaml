@@ -1,5 +1,5 @@
 services:
-  # Background worker for the main bot
+  # Background worker for the enhanced bot
   - type: worker
     name: autowork-bot
     env: python
@@ -40,7 +40,7 @@ services:
           property: connectionString
 
 databases:
-  # Redis instance for sharing data between worker and dashboard
+  # Redis instance for sharing data and analytics
   - name: autowork-redis
     plan: starter  # Free tier
     maxmemoryPolicy: allkeys-lru

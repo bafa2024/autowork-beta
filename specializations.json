@@ -1,0 +1,81 @@
+{
+  "web_scraping": {
+    "keywords": [
+      "scrape", "scraping", "web scraping", "data extraction", 
+      "crawl", "crawler", "spider", "beautifulsoup", "selenium", 
+      "scrapy", "puppeteer", "extract data", "harvest", "mining"
+    ],
+    "success_rate": 0.85,
+    "min_budget": 100
+  },
+  
+  "automation": {
+    "keywords": [
+      "automate", "automation", "bot", "script", "automatic", 
+      "scheduled", "workflow", "process automation", "task automation",
+      "robotic", "rpa", "macro", "batch process"
+    ],
+    "success_rate": 0.80,
+    "min_budget": 150
+  },
+  
+  "api_integration": {
+    "keywords": [
+      "api", "integration", "rest", "restful", "webhook", 
+      "endpoint", "json", "xml", "third party", "integrate",
+      "oauth", "api development", "microservice", "graphql"
+    ],
+    "success_rate": 0.75,
+    "min_budget": 200
+  },
+  
+  "python": {
+    "keywords": [
+      "python", "django", "flask", "pandas", "numpy", 
+      "fastapi", "pytorch", "tensorflow", "matplotlib",
+      "jupyter", "anaconda", "pip", "python3", "py"
+    ],
+    "success_rate": 0.82,
+    "min_budget": 100
+  },
+  
+  "javascript": {
+    "keywords": [
+      "javascript", "node.js", "nodejs", "react", "vue",
+      "angular", "express", "typescript", "npm", "webpack",
+      "babel", "es6", "jquery", "ajax"
+    ],
+    "success_rate": 0.78,
+    "min_budget": 100
+  },
+  
+  "data_entry": {
+    "keywords": [
+      "data entry", "typing", "excel", "spreadsheet", 
+      "data processing", "copy paste", "form filling",
+      "data input", "data collection", "manual entry"
+    ],
+    "success_rate": 0.70,
+    "min_budget": 30
+  },
+  
+  "wordpress": {
+    "keywords": [
+      "wordpress", "wp", "woocommerce", "elementor",
+      "plugin", "theme", "customization", "wp-admin",
+      "gutenberg", "acf", "custom post type"
+    ],
+    "success_rate": 0.75,
+    "min_budget": 100
+  },
+  
+  "shopify": {
+    "keywords": [
+      "shopify", "ecommerce", "e-commerce", "dropshipping",
+      "shopify app", "liquid", "shopify theme", "shopify plus",
+      "online store", "shopify api"
+    ],
+    "success_rate": 0.80,
+    "min_budget": 200
+  }
+}

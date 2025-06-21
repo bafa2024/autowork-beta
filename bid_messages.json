@@ -1,99 +1,34 @@
-[
-  "Hi! I've carefully reviewed your project requirements and I'm confident I can deliver excellent results. With my experience in {skills}, I can start immediately and complete your project efficiently. I'd love to discuss your specific needs in more detail. Looking forward to working with you!",
+{
+  "professional": [
+    "Dear Client,\n\nI have carefully reviewed your project requirements for {project_title}. With my expertise in {skills}, I can deliver high-quality results within {days} days.\n\nI have successfully completed similar projects with excellent client feedback. I would be happy to discuss your specific needs in detail.\n\nBest regards.",
+    
+    "Dear Hiring Manager,\n\nYour project for {project_title} aligns perfectly with my professional expertise. I bring extensive experience in {skills} and can ensure timely delivery within {days} days.\n\nI'm committed to exceeding your expectations and would welcome the opportunity to discuss your requirements further.\n\nSincerely.",
+    
+    "Good day,\n\nI've thoroughly analyzed your requirements for {project_title}. My proven track record in {skills} positions me as an ideal candidate for this project.\n\nI guarantee professional execution within {days} days and look forward to contributing to your success.\n\nBest regards."
+  ],
   
-  "Hello! Your project caught my attention as it perfectly matches my expertise in {skills}. I have successfully completed similar projects and can ensure high-quality delivery within your timeline. I'm available to start right away. Let's discuss how I can help bring your vision to life!",
+  "value_focused": [
+    "Hi! I see you need help with {project_title}.\n\nHere's what you'll get:\n✓ Expert {skills} implementation\n✓ Delivery in just {days} days\n✓ Unlimited revisions until you're 100% satisfied\n✓ Post-delivery support\n\nMy goal is to exceed your expectations while staying within budget. Let's discuss!",
+    
+    "Hello! Your {project_title} project deserves the best, and that's what I deliver! 🌟\n\nWhat's included:\n✅ Professional {skills} development\n✅ Fast {days}-day turnaround\n✅ Free revisions\n✅ 30-day bug-fix guarantee\n✅ Clear communication throughout\n\nI'm committed to your success. Let's get started!",
+    
+    "Great project! Here's my value proposition for {project_title}:\n\n📌 Expertise: Specialized in {skills}\n📌 Speed: Completed in {days} days\n📌 Quality: Clean, tested, documented work\n📌 Support: Available for questions after delivery\n📌 Guarantee: Your satisfaction is my priority\n\nLet's create something amazing together!"
+  ],
+
   
-  "Greetings! I'm very interested in your project and have the exact skills you need in {skills}. I pride myself on clear communication, timely delivery, and exceeding client expectations. I'm ready to begin immediately and would appreciate the opportunity to discuss your project further.",
+  "friendly": [
+    "Hi there! 👋\n\nYour project for {project_title} caught my eye - it's exactly the kind of work I love doing! I've got solid experience with {skills} and can start right away.\n\nI'll make sure you get exactly what you need within {days} days. Let's chat about how I can help make your project a success! 😊",
+    
+    "Hey! I just read through your project and I'm really excited about it! 🚀\n\nI've been working with {skills} for years and love helping clients bring their ideas to life. I can have everything ready for you in just {days} days.\n\nLet's work together to create something awesome!",
+    
+    "Hi! Your {project_title} project sounds fantastic! ✨\n\nI'm passionate about {skills} and have helped many clients with similar projects. I promise to deliver great results within {days} days and keep you updated every step of the way.\n\nLooking forward to working with you!"
+  ],
   
-  "Hi there! I've read through your project details and I'm excited about the opportunity to work with you. My strong background in {skills} makes me an ideal candidate for this job. I'm committed to delivering quality work on time and within budget. Let's connect to discuss your requirements!",
-  
-  "Hello! Your project aligns perfectly with my skill set in {skills}. I have a proven track record of delivering similar projects successfully. I'm detail-oriented, responsive, and dedicated to client satisfaction. I'm available to start immediately and look forward to contributing to your project's success!",
-  
-  "Good day! I'm highly interested in your project. With extensive experience in {skills}, I can provide the quality and efficiency you're looking for. I understand the importance of meeting deadlines and maintaining clear communication throughout the project. Let me help you achieve your goals!",
-  
-  "Hi! I've thoroughly reviewed your requirements and I'm confident in my ability to deliver outstanding results. My expertise in {skills} combined with my commitment to client satisfaction makes me the perfect fit for your project. I'm ready to start immediately and eager to discuss the details!",
-  
-  "Hello there! Your project is exactly the type of work I excel at. With my skills in {skills} and a strong focus on quality, I can ensure your project is completed to the highest standards. I'm available now and would love to learn more about your specific needs!",
-  
-  "Greetings! I'm excited about the opportunity to work on your project. My experience in {skills} has prepared me well for challenges like yours. I believe in delivering work that exceeds expectations while maintaining open communication. Let's discuss how I can contribute to your success!",
-  
-  "Hi! Your project requirements match my expertise perfectly. I specialize in {skills} and have a proven track record of successful project completions. I'm available to start immediately and committed to delivering high-quality results within your timeline. Looking forward to collaborating with you!",
-  
-  "Hello! I just reviewed your project and I'm genuinely excited about the opportunity. My background in {skills} makes me uniquely qualified to handle your requirements. I believe in quality over quantity and will ensure your project gets my full attention. Ready to start whenever you are!",
-  
-  "Hi there! Your project description resonates with my professional experience. I've successfully delivered numerous projects involving {skills} and I'm confident I can exceed your expectations. I value clear communication and will keep you updated throughout the process. Let's make your project a success!",
-  
-  "Good morning/evening! I'm thrilled to find a project that aligns so well with my expertise in {skills}. I bring both technical skills and creative problem-solving to every project. I'm available to start immediately and would love to understand your vision better. Looking forward to your response!",
-  
-  "Hello! After reading your project details, I'm convinced we'd make a great team. My proficiency in {skills} combined with my dedication to client satisfaction ensures top-notch results. I believe in building long-term professional relationships and delivering value beyond expectations. Let's discuss your project!",
-  
-  "Hi! Your project immediately caught my eye as it's right in my wheelhouse. With solid experience in {skills}, I can guarantee professional results delivered on schedule. I'm a firm believer in regular updates and transparent communication. Available to start today - let's bring your ideas to life!",
-  
-  "Greetings! I'm genuinely interested in contributing to your project. My expertise in {skills} has been honed through years of successful project deliveries. I understand that every project is unique and deserves personalized attention. I'm ready to dedicate my skills to ensuring your complete satisfaction!",
-  
-  "Hello there! Your project presents an exciting challenge that I'm eager to tackle. My background in {skills} positions me perfectly to deliver the results you're seeking. I pride myself on attention to detail and meeting deadlines without compromising quality. Let's discuss how I can help achieve your goals!",
-  
-  "Hi! I've analyzed your requirements and I'm confident I can deliver exactly what you need. With comprehensive knowledge in {skills}, I bring both technical expertise and creative solutions. I believe in going the extra mile for my clients. Available to start immediately - let's create something amazing together!",
-  
-  "Good day! Your project aligns perfectly with my professional strengths. I've built my reputation on delivering quality work in {skills} while maintaining excellent client relationships. I'm committed to understanding your needs and exceeding expectations. Ready to start when you are - let's discuss the details!",
-  
-  "Hello! I'm excited about the possibility of working on your project. My experience in {skills} has taught me that success comes from understanding client needs and delivering accordingly. I'm available for immediate start and committed to your project's success. Looking forward to collaborating with you!",
-  
-  "Hi there! Your project is exactly the kind of challenge I thrive on. With proven expertise in {skills}, I can assure you of professional, timely delivery. I believe in keeping clients informed at every stage and welcome feedback. Let's work together to achieve outstanding results!",
-  
-  "Greetings! I've carefully studied your project requirements and I'm impressed by your vision. My skills in {skills} make me an ideal match for this project. I'm known for my reliability, quality work, and ability to meet tight deadlines. Available to start right away - let's make it happen!",
-  
-  "Hello! Your project description speaks directly to my professional experience. I've successfully completed numerous projects requiring {skills} and consistently receive positive feedback. I'm passionate about delivering work that makes a real difference. Ready to bring that same dedication to your project!",
-  
-  "Hi! I'm genuinely enthusiastic about your project. My expertise in {skills} combined with my problem-solving approach ensures efficient, high-quality results. I believe in building trust through consistent communication and reliable delivery. Let's discuss how I can contribute to your project's success!",
-  
-  "Good morning/evening! Your project requirements align perfectly with my skill set. Having worked extensively with {skills}, I understand the nuances that make projects successful. I'm committed to delivering work that not only meets but exceeds your expectations. Available to start immediately!",
-  
-  "Hello there! I'm impressed by your project outline and eager to contribute. My background in {skills} has prepared me to handle projects like yours with expertise and efficiency. I value client satisfaction above all and will ensure your project receives dedicated attention. Let's create excellence together!",
-  
-  "Hi! After reviewing your project, I'm confident I'm the right person for the job. My experience with {skills} spans several successful projects similar to yours. I believe in transparent communication and delivering on promises. Ready to start today - looking forward to discussing your vision!",
-  
-  "Greetings! Your project presents an exciting opportunity that matches my expertise perfectly. With strong skills in {skills}, I can deliver the quality and professionalism you're seeking. I'm detail-oriented, deadline-driven, and dedicated to client satisfaction. Let's bring your project to life!",
-  
-  "Hello! I'm thrilled about the possibility of working on your project. My proficiency in {skills} ensures I can handle your requirements with expertise and creativity. I believe every project deserves 100% commitment and that's exactly what I offer. Available to start immediately!",
-  
-  "Hi there! Your project requirements resonate with my professional experience and passion. Having mastered {skills}, I'm equipped to deliver exceptional results within your timeline. I pride myself on clear communication and exceeding expectations. Let's collaborate to achieve your goals!",
-  
-  "Good day! I've thoroughly analyzed your project and I'm excited about its potential. My expertise in {skills} combined with my commitment to quality makes me an ideal candidate. I believe in delivering work that adds real value to your business. Ready to start when you are!",
-  
-  "Hello! Your project caught my attention immediately as it aligns with my core competencies. With extensive experience in {skills}, I can guarantee professional delivery and attention to detail. I'm passionate about creating work that makes a lasting impact. Let's discuss your requirements!",
-  
-  "Hi! I'm genuinely interested in your project and confident in my ability to deliver outstanding results. My background in {skills} has prepared me for projects exactly like yours. I believe in building lasting professional relationships through quality work and reliable service. Available to start today!",
-  
-  "Greetings! After reviewing your requirements, I'm excited about the opportunity to contribute. My skills in {skills} are complemented by my dedication to client satisfaction and timely delivery. I approach every project with fresh enthusiasm and commitment. Looking forward to working with you!",
-  
-  "Hello there! Your project description matches my expertise perfectly. I've honed my skills in {skills} through numerous successful projects and satisfied clients. I believe in delivering work that speaks for itself through quality and attention to detail. Let's create something exceptional together!",
-  
-  "Hi! I'm impressed by your project outline and eager to bring my expertise to the table. With solid experience in {skills}, I can ensure smooth execution and excellent results. I value open communication and will keep you informed throughout the process. Ready to start immediately!",
-  
-  "Good morning/evening! Your project presents the perfect opportunity to apply my skills in {skills}. I'm known for delivering high-quality work on time and maintaining excellent client relationships. I'm committed to understanding your needs and exceeding expectations. Let's discuss the details!",
-  
-  "Hello! I've carefully reviewed your requirements and I'm enthusiastic about this opportunity. My proficiency in {skills} ensures I can deliver exactly what you're looking for. I believe in going above and beyond for every client. Available to start right away - let's make your vision reality!",
-  
-  "Hi there! Your project aligns beautifully with my professional expertise. Having worked extensively with {skills}, I understand what it takes to deliver exceptional results. I'm reliable, communicative, and committed to your success. Looking forward to bringing value to your project!",
-  
-  "Greetings! I'm excited about your project and confident I can exceed your expectations. My experience in {skills} has taught me the importance of understanding client needs and delivering accordingly. I'm ready to dedicate my skills and time to ensure your complete satisfaction!",
-  
-  "Hello! After reading your project details, I'm convinced we'd work great together. My expertise in {skills} combined with my passion for quality ensures outstanding results. I believe in transparent communication and delivering on every promise. Let's discuss how I can help achieve your goals!",
-  
-  "Hi! Your project immediately stood out to me as a perfect match for my skills. With proven experience in {skills}, I can guarantee professional execution and timely delivery. I'm committed to providing value that extends beyond just completing tasks. Ready to start when you are!",
-  
-  "Good day! I'm genuinely interested in contributing to your project's success. My background in {skills} has equipped me with the knowledge and experience needed for projects like yours. I pride myself on reliability and exceeding client expectations. Available for immediate start!",
-  
-  "Hello there! Your project requirements speak directly to my areas of expertise. I've successfully delivered numerous projects involving {skills} and maintain a track record of satisfied clients. I believe in quality, communication, and commitment. Let's work together to achieve excellent results!",
-  
-  "Hi! I've analyzed your project and I'm excited about the possibilities. My skills in {skills} make me uniquely qualified to handle your requirements efficiently. I'm dedicated to delivering work that not only meets but exceeds expectations. Looking forward to discussing your vision!",
-  
-  "Greetings! Your project presents an exciting challenge that I'm eager to tackle. With comprehensive experience in {skills}, I can ensure professional results delivered on schedule. I believe in building trust through consistent quality and communication. Let's create something remarkable together!",
-  
-  "Hello! I'm thrilled about the opportunity to work on your project. My expertise in {skills} has been refined through years of successful project completions. I'm committed to understanding your unique needs and delivering customized solutions. Ready to start immediately!",
-  
-  "Hi there! Your project description resonates perfectly with my professional background. Having mastered {skills}, I'm confident in delivering the high-quality results you're seeking. I value client satisfaction and will ensure your project receives my full attention. Let's bring your ideas to life!",
-  
-  "Good morning/evening! I'm impressed by your project outline and eager to contribute my expertise. My skills in {skills} combined with my dedication to excellence make me an ideal partner for your project. I believe in delivering value that makes a real difference. Available to start today!"
-]
+  "technical": [
+    "Hello,\n\nI've analyzed your requirements for {project_title}. Technical approach:\n- I'll use {skills} to implement a robust solution\n- Deliverables will include clean code, documentation, and testing\n- Timeline: {days} days with daily progress updates\n\nI'm ready to start immediately.",
+    
+    "Greetings,\n\nProject: {project_title}\nTechnology Stack: {skills}\nDelivery: {days} days\n\nI'll implement best practices including:\n• Modular architecture\n• Comprehensive testing\n• Clean, documented code\n• Version control\n\nReady to begin immediately.",
+    
+    "Technical Proposal for {project_title}:\n\nCore Technologies: {skills}\nDevelopment Timeline: {days} days\n\nMethodology:\n1. Requirements analysis\n2. Architecture design\n3. Implementation with TDD\n4. Testing & optimization\n5. Deployment & documentation\n\nI ensure enterprise-grade code quality."
+  ]
+}

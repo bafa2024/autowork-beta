@@ -46,6 +46,7 @@ def get_bot_stats():
                 'bids_today': int(redis_client.get('bids_today') or 0),
                 'elite_bids': int(redis_client.get('elite_bids') or 0),
                 'elite_percentage': float(redis_client.get('elite_percentage') or 0),
+                'win_rate': float(redis_client.get('win_rate') or 0),
                 'last_bid_time': redis_client.get('last_bid_time') or 'Never',
                 'bot_status': redis_client.get('bot_status') or 'Unknown',
                 'bot_mode': redis_client.get('bot_mode') or 'Standard',
@@ -54,6 +55,14 @@ def get_bot_stats():
                 'last_error': redis_client.get('last_error') or 'None',
                 'success_rate': float(redis_client.get('success_rate') or 0)
             }
+            
+            # Get filtered projects count
+            skipped_data = redis_client.get('skipped_projects')
+            if skipped_data:
+                skipped = json.loads(skipped_data)
+                stats['filtered_projects'] = sum(skipped.values())
+            else:
+                stats['filtered_projects'] = 0
             
             # Get recent bids
             recent_bids = []
@@ -74,6 +83,8 @@ def get_bot_stats():
         'bids_today': 0,
         'elite_bids': 0,
         'elite_percentage': 0,
+        'win_rate': 0,
+        'filtered_projects': 0,
         'last_bid_time': 'Not available',
         'bot_status': 'Redis not connected',
         'bot_mode': 'Unknown',

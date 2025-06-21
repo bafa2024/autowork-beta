@@ -451,6 +451,28 @@
                     <div class="stat-value" id="elite-bids">0</div>
                     <div class="stat-label"><span id="elite-percentage">0%</span> of total bids</div>
                 </div>
+
+                <div class="card fade-in">
+                    <h2>
+                        <svg class="icon" viewBox="0 0 24 24">
+                            <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                        </svg>
+                        Win Rate
+                    </h2>
+                    <div class="stat-value" id="win-rate">0%</div>
+                    <div class="stat-label">Projects awarded</div>
+                </div>
+
+                <div class="card fade-in">
+                    <h2>
+                        <svg class="icon" viewBox="0 0 24 24">
+                            <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
+                        </svg>
+                        Projects Filtered
+                    </h2>
+                    <div class="stat-value" id="filtered-projects">0</div>
+                    <div class="stat-label">Skipped (bad fit)</div>
+                </div>
             </div>
 
             <div class="dashboard">
@@ -615,6 +637,8 @@
                 updateStatWithAnimation('success-rate', `${data.stats.success_rate.toFixed(1)}%`);
                 updateStatWithAnimation('processed-projects', data.stats.processed_projects);
                 updateStatWithAnimation('elite-bids', data.stats.elite_bids || 0);
+                updateStatWithAnimation('win-rate', `${data.stats.win_rate?.toFixed(1) || 0}%`);
+                updateStatWithAnimation('filtered-projects', data.stats.filtered_projects || 0);
                 
                 // Update elite percentage
                 const elitePercentage = data.stats.elite_percentage || 0;
