@@ -2,6 +2,7 @@
 """
 Enhanced AutoWork Bot with Smart Features for Higher Win Rate
 Includes: Smart timing, competitive pricing, client analysis, and more
+Fixed API error handling and token validation
 """
 
 import os
@@ -83,6 +84,10 @@ class AutoWorkMinimal:
         logging.info(f"✓ Early bird window: {self.config['smart_bidding']['early_bird_minutes']} minutes")
         logging.info(f"✓ Max bids threshold: {self.config['smart_bidding']['max_existing_bids']}")
         logging.info(f"✓ Min budget: ${self.config['smart_bidding']['min_profitable_budget']}")
+        
+        # Verify token on startup
+        if not self.verify_token_on_startup():
+            raise ValueError("Token validation failed - please update your token")
 
     def init_redis(self):
         """Initialize Redis connection if available"""
@@ -96,6 +101,97 @@ class AutoWorkMinimal:
             except Exception as e:
                 logging.warning(f"Redis connection failed: {e}")
         return None
+
+    def verify_token_on_startup(self):
+        """Verify token is valid before starting bot"""
+        try:
+            logging.info("Verifying token validity...")
+            
+            # Test with user endpoint
+            response = requests.get(
+                f"{self.api_base}/users/0.1/users/{self.user_id}",
+                headers=self.headers
+            )
+            
+            if response.status_code == 401:
+                logging.error("="*60)
+                logging.error("TOKEN AUTHENTICATION FAILED!")
+                logging.error("Your token is expired or invalid.")
+                logging.error("Please get a new token from: https://www.freelancer.com/api/docs/")
+                logging.error("="*60)
+                
+                if self.redis_client:
+                    self.redis_client.set('bot_status', 'Error - Invalid Token')
+                    self.redis_client.set('last_error', 'Token authentication failed')
+                
+                return False
+            
+            if response.status_code == 200:
+                data = response.json()
+                username = data.get('result', {}).get('username', 'Unknown')
+                logging.info(f"✅ Token valid - Logged in as: {username}")
+                return True
+            else:
+                logging.error(f"Token verification failed: {response.status_code}")
+                return False
+                
+        except Exception as e:
+            logging.error(f"Error verifying token: {e}")
+            return False
+
+    def validate_api_response(self, response, endpoint_name="API"):
+        """Validate API response and handle errors gracefully"""
+        
+        # Check response status
+        if response.status_code == 401:
+            error_msg = "Authentication failed - Token expired or invalid"
+            logging.error(f"{endpoint_name}: {error_msg}")
+            logging.error("Please generate a new token at: https://www.freelancer.com/api/docs/")
+            if self.redis_client:
+                self.redis_client.set('last_error', error_msg)
+                self.redis_client.set('bot_status', 'Error - Invalid Token')
+            return None
+        
+        if response.status_code == 429:
+            error_msg = "Rate limit exceeded - Too many requests"
+            logging.error(f"{endpoint_name}: {error_msg}")
+            if self.redis_client:
+                self.redis_client.set('last_error', error_msg)
+            return None
+        
+        if response.status_code != 200:
+            error_msg = f"HTTP {response.status_code} error"
+            logging.error(f"{endpoint_name}: {error_msg}")
+            logging.error(f"Response: {response.text[:500]}")
+            if self.redis_client:
+                self.redis_client.set('last_error', error_msg)
+            return None
+        
+        # Try to parse JSON
+        try:
+            data = response.json()
+        except json.JSONDecodeError as e:
+            logging.error(f"{endpoint_name}: Invalid JSON response - {e}")
+            logging.error(f"Raw response: {response.text[:500]}")
+            if self.redis_client:
+                self.redis_client.set('last_error', 'Invalid JSON response')
+            return None
+        
+        # Validate response structure
+        if not isinstance(data, dict):
+            logging.error(f"{endpoint_name}: Response is not a dictionary")
+            logging.error(f"Type: {type(data)}, Content: {str(data)[:500]}")
+            return None
+        
+        # Check for API errors in response
+        if data.get('status') == 'error':
+            error_msg = data.get('message', 'Unknown API error')
+            logging.error(f"{endpoint_name}: API Error - {error_msg}")
+            if self.redis_client:
+                self.redis_client.set('last_error', error_msg)
+            return None
+        
+        return data
 
     def load_config(self) -> Dict:
         """Load configuration from file or use defaults"""
@@ -360,6 +456,22 @@ class AutoWorkMinimal:
             except Exception as e:
                 logging.error(f"Error loading bid messages: {e}")
         
+        # Try standard bid messages file
+        standard_file = "bid_messages.json"
+        if os.path.exists(standard_file):
+            try:
+                with open(standard_file, 'r') as f:
+                    messages = json.load(f)
+                    # Convert to categorized format
+                    return {
+                        "professional": messages[:len(messages)//4],
+                        "friendly": messages[len(messages)//4:len(messages)//2],
+                        "technical": messages[len(messages)//2:3*len(messages)//4],
+                        "value_focused": messages[3*len(messages)//4:]
+                    }
+            except:
+                pass
+        
         # Default categorized messages
         return {
             "professional": [
@@ -407,41 +519,45 @@ class AutoWorkMinimal:
             endpoint = f"{self.api_base}/users/0.1/users/{employer_id}"
             response = requests.get(endpoint, headers=self.headers)
             
-            if response.status_code == 200:
-                data = response.json().get('result', {})
-                
-                # Get client's project history
-                projects_endpoint = f"{self.api_base}/projects/0.1/projects"
-                projects_params = {'owners[]': employer_id, 'limit': 10}
-                projects_response = requests.get(projects_endpoint, headers=self.headers, params=projects_params)
-                
-                project_count = 0
-                completion_rate = 0
-                
-                if projects_response.status_code == 200:
-                    projects = projects_response.json().get('result', {}).get('projects', [])
-                    project_count = len(projects)
-                    if projects:
-                        completed = sum(1 for p in projects if p.get('status', {}).get('name') == 'complete')
-                        completion_rate = completed / project_count
-                
-                client_analysis = {
-                    'rating': data.get('reputation', {}).get('entire_history', {}).get('overall', 0),
-                    'projects_posted': project_count,
-                    'payment_verified': data.get('status', {}).get('payment_verified', False),
-                    'completion_rate': completion_rate,
-                    'member_since': data.get('registration_date', ''),
-                    'is_good_client': True
-                }
-                
-                # Determine if good client
-                config = self.config['client_filtering']
-                if (client_analysis['rating'] < config['min_client_rating'] or
-                    client_analysis['completion_rate'] < config['min_completion_rate'] or
-                    client_analysis['projects_posted'] < config['min_projects_posted']):
-                    client_analysis['is_good_client'] = False
-                
-                return client_analysis
+            data = self.validate_api_response(response, "Client Analysis")
+            if not data:
+                return {'is_good_client': True}  # Default to true if can't analyze
+            
+            user_data = data.get('result', {})
+            
+            # Get client's project history
+            projects_endpoint = f"{self.api_base}/projects/0.1/projects"
+            projects_params = {'owners[]': employer_id, 'limit': 10}
+            projects_response = requests.get(projects_endpoint, headers=self.headers, params=projects_params)
+            
+            project_count = 0
+            completion_rate = 0
+            
+            projects_data = self.validate_api_response(projects_response, "Client Projects")
+            if projects_data:
+                projects = projects_data.get('result', {}).get('projects', [])
+                project_count = len(projects)
+                if projects:
+                    completed = sum(1 for p in projects if p.get('status', {}).get('name') == 'complete')
+                    completion_rate = completed / project_count
+            
+            client_analysis = {
+                'rating': user_data.get('reputation', {}).get('entire_history', {}).get('overall', 0),
+                'projects_posted': project_count,
+                'payment_verified': user_data.get('status', {}).get('payment_verified', False),
+                'completion_rate': completion_rate,
+                'member_since': user_data.get('registration_date', ''),
+                'is_good_client': True
+            }
+            
+            # Determine if good client
+            config = self.config['client_filtering']
+            if (client_analysis['rating'] < config['min_client_rating'] or
+                client_analysis['completion_rate'] < config['min_completion_rate'] or
+                client_analysis['projects_posted'] < config['min_projects_posted']):
+                client_analysis['is_good_client'] = False
+            
+            return client_analysis
                 
         except Exception as e:
             logging.error(f"Error analyzing client {employer_id}: {e}")
@@ -731,24 +847,27 @@ class AutoWorkMinimal:
             endpoint = f"{self.api_base}/projects/0.1/projects/{project_id}/nda"
             response = requests.get(endpoint, headers=self.headers)
             
-            if response.status_code == 200:
-                nda_data = response.json().get('result', {})
+            data = self.validate_api_response(response, "NDA Check")
+            if not data:
+                return True  # Continue anyway
+            
+            nda_data = data.get('result', {})
+            
+            if nda_data.get('status') == 'unsigned':
+                sign_endpoint = f"{self.api_base}/projects/0.1/projects/{project_id}/nda/sign"
+                sign_response = requests.post(sign_endpoint, headers=self.headers, json={})
                 
-                if nda_data.get('status') == 'unsigned':
-                    sign_endpoint = f"{self.api_base}/projects/0.1/projects/{project_id}/nda/sign"
-                    sign_response = requests.post(sign_endpoint, headers=self.headers, json={})
-                    
-                    if sign_response.status_code in [200, 201]:
-                        self.nda_signed_projects.add(project_id)
-                        logging.info("   ✅ NDA signed automatically")
-                        return True
-                    else:
-                        logging.error(f"   Failed to sign NDA: {sign_response.status_code}")
-                        return False
-                
-                elif nda_data.get('status') == 'signed':
+                if sign_response.status_code in [200, 201]:
                     self.nda_signed_projects.add(project_id)
+                    logging.info("   ✅ NDA signed automatically")
                     return True
+                else:
+                    logging.error(f"   Failed to sign NDA: {sign_response.status_code}")
+                    return False
+            
+            elif nda_data.get('status') == 'signed':
+                self.nda_signed_projects.add(project_id)
+                return True
             
             return True
             
@@ -765,24 +884,27 @@ class AutoWorkMinimal:
             endpoint = f"{self.api_base}/projects/0.1/projects/{project_id}/ip_contract"
             response = requests.get(endpoint, headers=self.headers)
             
-            if response.status_code == 200:
-                ip_data = response.json().get('result', {})
+            data = self.validate_api_response(response, "IP Agreement Check")
+            if not data:
+                return True  # Continue anyway
+            
+            ip_data = data.get('result', {})
+            
+            if ip_data.get('status') == 'unsigned':
+                sign_endpoint = f"{self.api_base}/projects/0.1/projects/{project_id}/ip_contract/sign"
+                sign_response = requests.post(sign_endpoint, headers=self.headers, json={})
                 
-                if ip_data.get('status') == 'unsigned':
-                    sign_endpoint = f"{self.api_base}/projects/0.1/projects/{project_id}/ip_contract/sign"
-                    sign_response = requests.post(sign_endpoint, headers=self.headers, json={})
-                    
-                    if sign_response.status_code in [200, 201]:
-                        self.ip_signed_projects.add(project_id)
-                        logging.info("   ✅ IP agreement signed automatically")
-                        return True
-                    else:
-                        logging.error(f"   Failed to sign IP agreement: {sign_response.status_code}")
-                        return False
-                
-                elif ip_data.get('status') == 'signed':
+                if sign_response.status_code in [200, 201]:
                     self.ip_signed_projects.add(project_id)
+                    logging.info("   ✅ IP agreement signed automatically")
                     return True
+                else:
+                    logging.error(f"   Failed to sign IP agreement: {sign_response.status_code}")
+                    return False
+            
+            elif ip_data.get('status') == 'signed':
+                self.ip_signed_projects.add(project_id)
+                return True
             
             return True
             
@@ -959,7 +1081,7 @@ class AutoWorkMinimal:
             return False
 
     def get_active_projects(self, limit: int = 50) -> List[Dict]:
-        """Fetch active projects with enhanced filtering and sorting"""
+        """Fetch active projects with better error handling"""
         try:
             endpoint = f"{self.api_base}/projects/0.1/projects/active"
             params = {
@@ -967,44 +1089,81 @@ class AutoWorkMinimal:
                 "job_details": "true",
                 "full_description": "true",
                 "upgrade_details": "true",
-                "user_details": "true",
-                "compact": "false",
-                "user_status": "true"
+                "compact": "false"
             }
+            
+            logging.debug(f"Fetching projects from: {endpoint}")
             
             response = requests.get(endpoint, headers=self.headers, params=params)
             
-            if response.status_code == 200:
-                data = response.json()
-                projects = data.get("result", {}).get("projects", [])
+            # Use the validation method
+            data = self.validate_api_response(response, "Projects API")
+            if data is None:
+                return []
+            
+            # Safely extract projects
+            result = data.get("result", {})
+            if not isinstance(result, dict):
+                logging.error(f"Invalid result structure: {type(result)}")
+                return []
+            
+            projects = result.get("projects", [])
+            if not isinstance(projects, list):
+                logging.error(f"Projects is not a list: {type(projects)}")
+                return []
+            
+            # Filter out any non-dict items
+            valid_projects = [p for p in projects if isinstance(p, dict)]
+            
+            if len(valid_projects) < len(projects):
+                logging.warning(f"Filtered out {len(projects) - len(valid_projects)} invalid projects")
+            
+            # Process with smart bidding if enabled
+            if self.config.get('smart_bidding', {}).get('enabled', True):
+                projects_with_priority = []
                 
-                if self.config['smart_bidding']['enabled']:
-                    # Calculate priority for each project
-                    projects_with_priority = []
-                    for project in projects:
+                for project in valid_projects:
+                    try:
                         priority_score, _ = self.calculate_bid_priority(project)
                         projects_with_priority.append((priority_score, project))
-                    
-                    # Sort by priority score (highest first)
-                    projects_with_priority.sort(key=lambda x: x[0], reverse=True)
-                    
-                    # Return sorted projects
-                    sorted_projects = [p[1] for p in projects_with_priority]
-                    
-                    # Count elite projects
-                    elite_count = sum(1 for p in sorted_projects if self.is_elite_project(p))
-                    logging.info(f"✓ Fetched {len(sorted_projects)} projects ({elite_count} elite) - Sorted by priority")
-                    
-                    return sorted_projects
-                else:
-                    # Return unsorted if smart bidding disabled
-                    return projects
-            else:
-                logging.error(f"Error fetching projects: {response.status_code}")
-                return []
+                    except Exception as e:
+                        logging.warning(f"Error calculating priority for project: {e}")
+                        continue
                 
+                # Sort by priority
+                projects_with_priority.sort(key=lambda x: x[0], reverse=True)
+                sorted_projects = [p[1] for p in projects_with_priority]
+                
+                # Count elite projects safely
+                elite_count = 0
+                for p in sorted_projects:
+                    try:
+                        if self.is_elite_project(p):
+                            elite_count += 1
+                    except:
+                        pass
+                
+                logging.info(f"✓ Fetched {len(sorted_projects)} valid projects ({elite_count} elite)")
+                return sorted_projects
+            else:
+                logging.info(f"✓ Fetched {len(valid_projects)} valid projects")
+                return valid_projects
+                
+        except requests.exceptions.Timeout:
+            logging.error("Request timeout - Freelancer API may be slow")
+            if self.redis_client:
+                self.redis_client.set('last_error', 'API timeout')
+            return []
+        except requests.exceptions.ConnectionError:
+            logging.error("Connection error - Check internet connection")
+            if self.redis_client:
+                self.redis_client.set('last_error', 'Connection error')
+            return []
         except Exception as e:
-            logging.error(f"Exception fetching projects: {e}")
+            logging.error(f"Unexpected error in get_active_projects: {e}")
+            logging.error(f"Error type: {type(e).__name__}")
+            import traceback
+            logging.error(f"Traceback: {traceback.format_exc()}")
             if self.redis_client:
                 self.redis_client.set('last_error', str(e))
             return []
