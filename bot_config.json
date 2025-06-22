@@ -2,18 +2,56 @@
   "bidding": {
     "delivery_days": 4,
     "express_delivery_days": 2,
-    "min_bid_delay_seconds": 10,  
+    "min_bid_delay_seconds": 10,
     "bid_multiplier_regular": 1.15,
     "bid_multiplier_elite": 1.2,
     "default_bid_regular": 100,
     "default_bid_elite": 150
   },
+  
+  "smart_bidding": {
+    "enabled": true,
+    "max_existing_bids": 15,
+    "early_bird_minutes": 30,
+    "instant_bid_threshold": 5,
+    "competitive_pricing": true,
+    "undercut_percentage": 0.95,
+    "min_profitable_budget": 50
+  },
+  
+  "client_filtering": {
+    "enabled": true,
+    "min_client_rating": 4.0,
+    "min_completion_rate": 0.8,
+    "min_projects_posted": 1,
+    "check_payment_verified": true
+  },
+  
+  "elite_projects": {
+    "auto_sign_nda": true,
+    "auto_sign_ip_agreement": true,
+    "track_elite_stats": true
+  },
+  
+  "filtering": {
+    "max_projects_per_cycle": 50,
+    "skip_projects_with_bids_above": 25,
+    "portfolio_matching": true,
+    "min_skill_match_score": 0.3
+  },
+  
   "monitoring": {
-    "check_interval_seconds": 60,  
-    "peak_hours_interval": 45,     
-    "off_hours_interval": 90,      
+    "check_interval_seconds": 60,
+    "peak_hours_interval": 45,
+    "off_hours_interval": 90,
     "error_retry_delay_seconds": 300,
     "max_consecutive_errors": 5,
-    "daily_bid_limit": 50         
+    "daily_bid_limit": 50
+  },
+  
+  "performance": {
+    "track_analytics": true,
+    "ab_testing_enabled": true,
+    "analyze_every_n_cycles": 10
   }
 }
