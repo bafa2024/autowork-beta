@@ -1049,6 +1049,28 @@ class AutoWorkMinimal:
         except Exception as e:
             logging.debug(f"Error tracking performance: {e}")
 
+    def handle_rate_limit(self, wait_time: int = 300):
+        """Handle rate limit by waiting and clearing processed projects"""
+        logging.warning(f"⚠️  Rate limited! Waiting {wait_time} seconds...")
+        
+        # Clear some processed projects to allow new ones
+        if len(self.processed_projects) > 100:
+            # Keep only the most recent 50 projects
+            self.processed_projects = set(list(self.processed_projects)[-50:])
+        
+        # Update Redis status
+        if self.redis_client:
+            self.redis_client.set('bot_status', 'Rate Limited - Waiting')
+            self.redis_client.set('rate_limit_wait_until', (datetime.now() + timedelta(seconds=wait_time)).isoformat())
+        
+        # Wait
+        time.sleep(wait_time)
+        
+        # Update status
+        if self.redis_client:
+            self.redis_client.set('bot_status', 'Running - Enhanced Mode')
+            self.redis_client.delete('rate_limit_wait_until')
+
     def place_bid(self, project: Dict) -> bool:
         """Place a bid on a project with all enhancements"""
         try:
@@ -1057,6 +1079,14 @@ class AutoWorkMinimal:
             if not project_id:
                 logging.error("Project has no ID")
                 return False
+            
+            # Double-check if already processed
+            if project_id in self.processed_projects:
+                logging.debug(f"Project {project_id} already processed, skipping")
+                return False
+            
+            # Add to processed immediately to prevent duplicate attempts
+            self.processed_projects.add(project_id)
             
             # Check if it's a new day
             if datetime.now().date() > self.today_date:
@@ -1139,8 +1169,28 @@ class AutoWorkMinimal:
                 timeout=30
             )
             
+            # Handle rate limiting
+            if response.status_code == 429:
+                logging.error("❌ Rate limited!")
+                # Remove from processed so we can try again later
+                self.processed_projects.discard(project_id)
+                
+                # Handle rate limit
+                self.handle_rate_limit(300)  # Wait 5 minutes
+                return False
+            
+            # Handle duplicate bid
+            if response.status_code == 409:
+                try:
+                    error_data = response.json()
+                    if error_data.get('error_code') == 'ProjectExceptionCodes.DUPLICATE_BID':
+                        logging.warning(f"⚠️  Already bid on project {project_id} - marking as processed")
+                        # Keep in processed projects
+                        return False
+                except:
+                    pass
+            
             if response.status_code in [200, 201]:
-                self.processed_projects.add(project_id)
                 self.bid_count += 1
                 self.bids_today += 1
                 if is_elite:
@@ -1179,6 +1229,9 @@ class AutoWorkMinimal:
                 if response.text:
                     logging.error(f"   Response: {response.text[:200]}")
                 
+                # Remove from processed so we can try again
+                self.processed_projects.discard(project_id)
+                
                 if self.redis_client:
                     self.redis_client.set('last_error', f"Bid failed: {response.status_code}")
                 
@@ -1188,6 +1241,10 @@ class AutoWorkMinimal:
             logging.error(f"Exception placing bid: {e}")
             import traceback
             logging.error(f"Traceback: {traceback.format_exc()}")
+            
+            # Remove from processed on error
+            if project_id:
+                self.processed_projects.discard(project_id)
             
             if self.redis_client:
                 self.redis_client.set('last_error', str(e))
@@ -1341,382 +1398,8 @@ class AutoWorkMinimal:
                 percentage = (count / total_variants * 100) if total_variants > 0 else 0
                 logging.info(f"  {variant}: {count} ({percentage:.1f}%)")
 
-    
-    # Add these methods to your AutoWorkMinimal class:
-
-def handle_rate_limit(self, wait_time: int = 300):
-    """Handle rate limit by waiting and clearing processed projects"""
-    logging.warning(f"⚠️  Rate limited! Waiting {wait_time} seconds...")
-    
-    # Clear some processed projects to allow new ones
-    if len(self.processed_projects) > 100:
-        # Keep only the most recent 50 projects
-        self.processed_projects = set(list(self.processed_projects)[-50:])
-    
-    # Update Redis status
-    if self.redis_client:
-        self.redis_client.set('bot_status', 'Rate Limited - Waiting')
-        self.redis_client.set('rate_limit_wait_until', (datetime.now() + timedelta(seconds=wait_time)).isoformat())
-    
-    # Wait
-    time.sleep(wait_time)
-    
-    # Update status
-    if self.redis_client:
-        self.redis_client.set('bot_status', 'Running - Enhanced Mode')
-        self.redis_client.delete('rate_limit_wait_until')
-
-def place_bid(self, project: Dict) -> bool:
-    """Place a bid on a project with all enhancements"""
-    try:
-        project_id = project.get("id")
-        
-        if not project_id:
-            logging.error("Project has no ID")
-            return False
-        
-        # Double-check if already processed
-        if project_id in self.processed_projects:
-            logging.debug(f"Project {project_id} already processed, skipping")
-            return False
-        
-        # Add to processed immediately to prevent duplicate attempts
-        self.processed_projects.add(project_id)
-        
-        # Check if it's a new day
-        if datetime.now().date() > self.today_date:
-            self.reset_daily_stats()
-        
-        # Calculate priority
-        priority_score, priority_reasons = self.calculate_bid_priority(project)
-        
-        # Get project details
-        details = self.get_project_details(project)
-        is_elite = details.get('is_elite', False)
-        
-        logging.info(f"   Priority: {priority_score} - {priority_reasons}")
-        
-        # Check and sign agreements if needed
-        if details.get('nda', False):
-            self.check_and_sign_nda(project_id)
-        
-        if details.get('ip_contract', False):
-            self.check_and_sign_ip_agreement(project_id)
-        
-        # Rate limiting
-        current_time = time.time()
-        min_delay = self.config['bidding']['min_bid_delay_seconds']
-        if current_time - self.last_bid_time < min_delay:
-            time.sleep(min_delay - (current_time - self.last_bid_time))
-        
-        # Calculate competitive bid
-        bid_amount = self.calculate_competitive_bid(project, is_elite)
-        
-        # Determine delivery days
-        if details.get('urgent', False):
-            delivery_days = self.config['bidding']['express_delivery_days']
-        else:
-            delivery_days = self.config['bidding']['delivery_days']
-        
-        # Generate optimized message
-        bid_message = self.select_bid_message(project, is_elite)
-        
-        # Get variant used for tracking
-        total_uses = sum(self.message_variants.values())
-        if total_uses > 0:
-            variant_index = (total_uses - 1) % len(self.message_variants)
-            variant_used = list(self.message_variants.keys())[variant_index]
-        else:
-            variant_used = 'professional'
-        
-        # Prepare bid data
-        bid_data = {
-            "project_id": project_id,
-            "bidder_id": int(self.user_id),
-            "amount": bid_amount,
-            "period": delivery_days,
-            "milestone_percentage": 100,
-            "description": bid_message
-        }
-        
-        # Log bid details
-        project_type = "🌟 ELITE" if is_elite else "Regular"
-        logging.info(f"   Type: {project_type}")
-        logging.info(f"   💰 Bid: ${bid_amount:.2f} (Budget: ${details.get('budget', {}).get('minimum', 0)}-${details.get('budget', {}).get('maximum', 0)})")
-        logging.info(f"   📅 Delivery: {delivery_days} days")
-        logging.info(f"   📝 Message variant: {variant_used}")
-        
-        if is_elite:
-            flags = []
-            if details.get('featured'): flags.append("Featured")
-            if details.get('sealed'): flags.append("Sealed")
-            if details.get('nda'): flags.append("NDA")
-            if details.get('ip_contract'): flags.append("IP Contract")
-            if details.get('urgent'): flags.append("Urgent")
-            logging.info(f"   Elite flags: {', '.join(flags)}")
-        
-        # Submit bid
-        endpoint = f"{self.api_base}/projects/0.1/bids"
-        response = requests.post(
-            endpoint, 
-            headers=self.headers, 
-            json=bid_data,
-            timeout=30
-        )
-        
-        # Handle rate limiting
-        if response.status_code == 429:
-            logging.error("❌ Rate limited!")
-            # Remove from processed so we can try again later
-            self.processed_projects.discard(project_id)
-            
-            # Handle rate limit
-            self.handle_rate_limit(300)  # Wait 5 minutes
-            return False
-        
-        # Handle duplicate bid
-        if response.status_code == 409:
-            try:
-                error_data = response.json()
-                if error_data.get('error_code') == 'ProjectExceptionCodes.DUPLICATE_BID':
-                    logging.warning(f"⚠️  Already bid on project {project_id} - marking as processed")
-                    # Keep in processed projects
-                    return False
-            except:
-                pass
-        
-        if response.status_code in [200, 201]:
-            self.bid_count += 1
-            self.bids_today += 1
-            if is_elite:
-                self.elite_bid_count += 1
-            self.last_bid_time = time.time()
-            
-            logging.info(f"✅ Bid placed successfully! Total: {self.bid_count} (Today: {self.bids_today})")
-            
-            # Track performance
-            self.track_bid_performance(project, bid_amount, priority_score, variant_used)
-            
-            # Save bid to Redis
-            if self.redis_client:
-                bid_key = f"bid:{int(time.time()*1000)}"
-                bid_info = {
-                    "project_id": project_id,
-                    "project_title": project.get('title', '')[:100],
-                    "amount": bid_amount,
-                    "delivery_days": delivery_days,
-                    "timestamp": datetime.now().isoformat(),
-                    "status": "success",
-                    "is_elite": is_elite,
-                    "priority_score": priority_score,
-                    "message_variant": variant_used
-                }
-                self.redis_client.set(bid_key, json.dumps(bid_info))
-                self.redis_client.expire(bid_key, 86400)
-                self.redis_client.set('last_bid_time', datetime.now().isoformat())
-            
-            # Save state
-            self.save_state_to_redis()
-            
-            return True
-        else:
-            logging.error(f"❌ Failed to bid: {response.status_code}")
-            if response.text:
-                logging.error(f"   Response: {response.text[:200]}")
-            
-            # Remove from processed so we can try again
-            self.processed_projects.discard(project_id)
-            
-            if self.redis_client:
-                self.redis_client.set('last_error', f"Bid failed: {response.status_code}")
-            
-            return False
-            
-    except Exception as e:
-        logging.error(f"Exception placing bid: {e}")
-        import traceback
-        logging.error(f"Traceback: {traceback.format_exc()}")
-        
-        # Remove from processed on error
-        if project_id:
-            self.processed_projects.discard(project_id)
-        
-        if self.redis_client:
-            self.redis_client.set('last_error', str(e))
-        return False
-
-def realtime_monitor_with_bidding(self):
-    """Enhanced monitoring loop with better rate limit handling"""
-    logging.info("🚀 Starting Enhanced AutoWork Bot...")
-    logging.info(f"User ID: {self.user_id}")
-    logging.info(f"Smart Features: {'Enabled' if self.config['smart_bidding']['enabled'] else 'Disabled'}")
-    logging.info(f"Client Filtering: {'Enabled' if self.config['client_filtering']['enabled'] else 'Disabled'}")
-    logging.info(f"Portfolio Matching: {'Enabled' if self.config['filtering']['portfolio_matching'] else 'Disabled'}")
-    logging.info(f"A/B Testing: {'Enabled' if self.config['performance']['ab_testing_enabled'] else 'Disabled'}")
-    
-    error_count = 0
-    max_errors = self.config['monitoring']['max_consecutive_errors']
-    cycle_count = 0
-    rate_limit_count = 0
-    
-    # Update Redis status
-    if self.redis_client:
-        self.redis_client.set('bot_status', 'Running - Enhanced Mode')
-        self.redis_client.set('bot_start_time', self.start_time.isoformat())
-    
-    while True:
-        try:
-            cycle_count += 1
-            
-            # Check daily limit
-            if self.bids_today >= self.config['monitoring']['daily_bid_limit']:
-                logging.warning(f"Daily bid limit reached ({self.config['monitoring']['daily_bid_limit']})")
-                hours_until_midnight = (24 - datetime.now().hour)
-                logging.info(f"Waiting {hours_until_midnight} hours until midnight...")
-                time.sleep(hours_until_midnight * 3600)
-                continue
-            
-            # Fetch and process projects
-            projects = self.get_active_projects(limit=self.config['filtering']['max_projects_per_cycle'])
-            
-            if projects:
-                logging.info(f"\n🔄 Cycle {cycle_count}: Processing top projects from {len(projects)} fetched")
-                
-                new_bids = 0
-                projects_analyzed = 0
-                rate_limited = False
-                
-                # Process each project
-                for project in projects:
-                    project_id = project.get("id")
-                    
-                    # Skip if already processed
-                    if project_id in self.processed_projects:
-                        continue
-                    
-                    projects_analyzed += 1
-                    
-                    # Check if should bid
-                    should_bid, reason = self.should_bid_on_project(project)
-                    
-                    if not should_bid:
-                        logging.debug(f"⏭️  Skipping: {project.get('title', 'Unknown')[:40]}... - {reason}")
-                        self.processed_projects.add(project_id)
-                        continue
-                    
-                    # Place bid
-                    logging.info(f"\n{'='*60}")
-                    logging.info(f"🎯 Attempting to bid on: {project.get('title', 'Unknown')[:50]}...")
-                    
-                    success = self.place_bid(project)
-                    
-                    if success:
-                        new_bids += 1
-                        rate_limit_count = 0  # Reset rate limit counter
-                        
-                        # Smart delay based on priority
-                        priority_score, _ = self.calculate_bid_priority(project)
-                        if priority_score > 150:
-                            delay = 2  # Fast for high priority
-                        elif priority_score > 100:
-                            delay = 3
-                        else:
-                            delay = 5
-                        
-                        logging.info(f"⏳ Waiting {delay} seconds before next bid...")
-                        time.sleep(delay)
-                    else:
-                        # Check if we got rate limited
-                        if self.redis_client and self.redis_client.get('rate_limit_wait_until'):
-                            rate_limited = True
-                            break
-                    
-                    # Stop if we've bid enough this cycle
-                    if new_bids >= 10:  # Max 10 bids per cycle
-                        logging.info("📊 Reached cycle bid limit (10 bids)")
-                        break
-                
-                # Log cycle summary
-                if projects_analyzed == 0:
-                    logging.info("No new projects to analyze")
-                else:
-                    logging.info(f"\n📊 Cycle Summary:")
-                    logging.info(f"   Projects analyzed: {projects_analyzed}")
-                    logging.info(f"   Bids placed: {new_bids}")
-                    logging.info(f"   Projects skipped: {projects_analyzed - new_bids}")
-                
-                if not rate_limited:
-                    error_count = 0  # Reset on success
-                
-            else:
-                error_count += 1
-                logging.warning(f"No projects fetched (error count: {error_count}/{max_errors})")
-                
-                if error_count >= max_errors:
-                    logging.error(f"Max errors reached. Waiting {self.config['monitoring']['error_retry_delay_seconds']} seconds...")
-                    time.sleep(self.config['monitoring']['error_retry_delay_seconds'])
-                    error_count = 0
-            
-            # Analyze performance periodically
-            if cycle_count % self.config['performance']['analyze_every_n_cycles'] == 0:
-                self.analyze_performance()
-            
-            # Save state
-            self.save_state_to_redis()
-            
-            # Determine wait time based on time of day and rate limiting
-            current_hour = datetime.now().hour
-            if rate_limit_count > 0:
-                # If we've been rate limited, wait longer
-                wait_time = 300  # 5 minutes
-            elif 2 <= current_hour <= 6:  # Late night - less activity
-                wait_time = self.config['monitoring']['off_hours_interval']
-            elif 8 <= current_hour <= 22:  # Peak hours
-                wait_time = self.config['monitoring']['peak_hours_interval']
-            else:
-                wait_time = self.config['monitoring']['check_interval_seconds']
-            
-            # Show summary
-            if self.bid_count > 0:
-                win_rate = (self.wins_count / self.bid_count * 100)
-                elite_rate = (self.elite_bid_count / self.bid_count * 100)
-                skip_rate = (sum(self.skipped_projects.values()) / (self.bid_count + sum(self.skipped_projects.values())) * 100)
-                
-                logging.info(f"\n📈 Overall Stats: {self.bid_count} total bids | {win_rate:.1f}% win rate | {elite_rate:.1f}% elite | {skip_rate:.1f}% filtered")
-            
-            logging.info(f"💤 Waiting {wait_time} seconds until next cycle...")
-            time.sleep(wait_time)
-            
-        except KeyboardInterrupt:
-            logging.info("\n⏹️  Bot stopped by user")
-            self.analyze_performance()
-            if self.redis_client:
-                self.redis_client.set('bot_status', 'Stopped')
-            break
-        except Exception as e:
-            error_count += 1
-            logging.error(f"Error in monitoring loop: {e}")
-            import traceback
-            logging.error(f"Traceback: {traceback.format_exc()}")
-            
-            if self.redis_client:
-                self.redis_client.set('last_error', str(e))
-            
-            if error_count >= max_errors:
-                logging.error(f"Too many errors. Waiting {self.config['monitoring']['error_retry_delay_seconds']} seconds...")
-                time.sleep(self.config['monitoring']['error_retry_delay_seconds'])
-                error_count = 0
-            else:
-                time.sleep(30)
-
-
-
-
-    
-    
-    
     def realtime_monitor_with_bidding(self):
-        """Enhanced monitoring loop with complete bidding logic"""
+        """Enhanced monitoring loop with better rate limit handling"""
         logging.info("🚀 Starting Enhanced AutoWork Bot...")
         logging.info(f"User ID: {self.user_id}")
         logging.info(f"Smart Features: {'Enabled' if self.config['smart_bidding']['enabled'] else 'Disabled'}")
@@ -1727,6 +1410,7 @@ def realtime_monitor_with_bidding(self):
         error_count = 0
         max_errors = self.config['monitoring']['max_consecutive_errors']
         cycle_count = 0
+        rate_limit_count = 0
         
         # Update Redis status
         if self.redis_client:
@@ -1753,6 +1437,7 @@ def realtime_monitor_with_bidding(self):
                     
                     new_bids = 0
                     projects_analyzed = 0
+                    rate_limited = False
                     
                     # Process each project
                     for project in projects:
@@ -1780,6 +1465,7 @@ def realtime_monitor_with_bidding(self):
                         
                         if success:
                             new_bids += 1
+                            rate_limit_count = 0  # Reset rate limit counter
                             
                             # Smart delay based on priority
                             priority_score, _ = self.calculate_bid_priority(project)
@@ -1792,6 +1478,11 @@ def realtime_monitor_with_bidding(self):
                             
                             logging.info(f"⏳ Waiting {delay} seconds before next bid...")
                             time.sleep(delay)
+                        else:
+                            # Check if we got rate limited
+                            if self.redis_client and self.redis_client.get('rate_limit_wait_until'):
+                                rate_limited = True
+                                break
                         
                         # Stop if we've bid enough this cycle
                         if new_bids >= 10:  # Max 10 bids per cycle
@@ -1807,7 +1498,9 @@ def realtime_monitor_with_bidding(self):
                         logging.info(f"   Bids placed: {new_bids}")
                         logging.info(f"   Projects skipped: {projects_analyzed - new_bids}")
                     
-                    error_count = 0  # Reset on success
+                    if not rate_limited:
+                        error_count = 0  # Reset on success
+                    
                 else:
                     error_count += 1
                     logging.warning(f"No projects fetched (error count: {error_count}/{max_errors})")
@@ -1824,9 +1517,12 @@ def realtime_monitor_with_bidding(self):
                 # Save state
                 self.save_state_to_redis()
                 
-                # Determine wait time based on time of day
+                # Determine wait time based on time of day and rate limiting
                 current_hour = datetime.now().hour
-                if 2 <= current_hour <= 6:  # Late night - less activity
+                if rate_limit_count > 0:
+                    # If we've been rate limited, wait longer
+                    wait_time = 300  # 5 minutes
+                elif 2 <= current_hour <= 6:  # Late night - less activity
                     wait_time = self.config['monitoring']['off_hours_interval']
                 elif 8 <= current_hour <= 22:  # Peak hours
                     wait_time = self.config['monitoring']['peak_hours_interval']
@@ -1865,158 +1561,6 @@ def realtime_monitor_with_bidding(self):
                     error_count = 0
                 else:
                     time.sleep(30)
-
-
-    def realtime_monitor_with_bidding(self):
-        """Enhanced monitoring loop with complete bidding logic"""
-        logging.info("🚀 Starting Enhanced AutoWork Bot...")
-        logging.info(f"User ID: {self.user_id}")
-        logging.info(f"Smart Features: {'Enabled' if self.config['smart_bidding']['enabled'] else 'Disabled'}")
-        logging.info(f"Client Filtering: {'Enabled' if self.config['client_filtering']['enabled'] else 'Disabled'}")
-        logging.info(f"Portfolio Matching: {'Enabled' if self.config['filtering']['portfolio_matching'] else 'Disabled'}")
-        logging.info(f"A/B Testing: {'Enabled' if self.config['performance']['ab_testing_enabled'] else 'Disabled'}")
-        
-        error_count = 0
-        max_errors = self.config['monitoring']['max_consecutive_errors']
-        cycle_count = 0
-        
-        # Update Redis status
-        if self.redis_client:
-            self.redis_client.set('bot_status', 'Running - Enhanced Mode')
-            self.redis_client.set('bot_start_time', self.start_time.isoformat())
-        
-        while True:
-            try:
-                cycle_count += 1
-                
-                # Check daily limit
-                if self.bids_today >= self.config['monitoring']['daily_bid_limit']:
-                    logging.warning(f"Daily bid limit reached ({self.config['monitoring']['daily_bid_limit']})")
-                    hours_until_midnight = (24 - datetime.now().hour)
-                    logging.info(f"Waiting {hours_until_midnight} hours until midnight...")
-                    time.sleep(hours_until_midnight * 3600)
-                    continue
-                
-                # Fetch and process projects
-                projects = self.get_active_projects(limit=self.config['filtering']['max_projects_per_cycle'])
-                
-                if projects:
-                    logging.info(f"\n🔄 Cycle {cycle_count}: Processing top projects from {len(projects)} fetched")
-                    
-                    new_bids = 0
-                    projects_analyzed = 0
-                    
-                    # Process each project
-                    for project in projects:
-                        project_id = project.get("id")
-                        
-                        # Skip if already processed
-                        if project_id in self.processed_projects:
-                            continue
-                        
-                        projects_analyzed += 1
-                        
-                        # Check if should bid
-                        should_bid, reason = self.should_bid_on_project(project)
-                        
-                        if not should_bid:
-                            logging.debug(f"⏭️  Skipping: {project.get('title', 'Unknown')[:40]}... - {reason}")
-                            self.processed_projects.add(project_id)
-                            continue
-                        
-                        # Place bid
-                        logging.info(f"\n{'='*60}")
-                        logging.info(f"🎯 Attempting to bid on: {project.get('title', 'Unknown')[:50]}...")
-                        
-                        success = self.place_bid(project)
-                        
-                        if success:
-                            new_bids += 1
-                            
-                            # Smart delay based on priority
-                            priority_score, _ = self.calculate_bid_priority(project)
-                            if priority_score > 150:
-                                delay = 2  # Fast for high priority
-                            elif priority_score > 100:
-                                delay = 3
-                            else:
-                                delay = 5
-                            
-                            logging.info(f"⏳ Waiting {delay} seconds before next bid...")
-                            time.sleep(delay)
-                        
-                        # Stop if we've bid enough this cycle
-                        if new_bids >= 10:  # Max 10 bids per cycle
-                            logging.info("📊 Reached cycle bid limit (10 bids)")
-                            break
-                    
-                    # Log cycle summary
-                    if projects_analyzed == 0:
-                        logging.info("No new projects to analyze")
-                    else:
-                        logging.info(f"\n📊 Cycle Summary:")
-                        logging.info(f"   Projects analyzed: {projects_analyzed}")
-                        logging.info(f"   Bids placed: {new_bids}")
-                        logging.info(f"   Projects skipped: {projects_analyzed - new_bids}")
-                    
-                    error_count = 0  # Reset on success
-                else:
-                    error_count += 1
-                    logging.warning(f"No projects fetched (error count: {error_count}/{max_errors})")
-                    
-                    if error_count >= max_errors:
-                        logging.error(f"Max errors reached. Waiting {self.config['monitoring']['error_retry_delay_seconds']} seconds...")
-                        time.sleep(self.config['monitoring']['error_retry_delay_seconds'])
-                        error_count = 0
-                
-                # Analyze performance periodically
-                if cycle_count % self.config['performance']['analyze_every_n_cycles'] == 0:
-                    self.analyze_performance()
-                
-                # Save state
-                self.save_state_to_redis()
-                
-                # Determine wait time based on time of day
-                current_hour = datetime.now().hour
-                if 2 <= current_hour <= 6:  # Late night - less activity
-                    wait_time = self.config['monitoring']['off_hours_interval']
-                elif 8 <= current_hour <= 22:  # Peak hours
-                    wait_time = self.config['monitoring']['peak_hours_interval']
-                else:
-                    wait_time = self.config['monitoring']['check_interval_seconds']
-                
-                # Show summary
-                if self.bid_count > 0:
-                    win_rate = (self.wins_count / self.bid_count * 100)
-                    elite_rate = (self.elite_bid_count / self.bid_count * 100)
-                    skip_rate = (sum(self.skipped_projects.values()) / (self.bid_count + sum(self.skipped_projects.values())) * 100)
-                    
-                    logging.info(f"\n📈 Overall Stats: {self.bid_count} total bids | {win_rate:.1f}% win rate | {elite_rate:.1f}% elite | {skip_rate:.1f}% filtered")
-                
-                logging.info(f"💤 Waiting {wait_time} seconds until next cycle...")
-                time.sleep(wait_time)
-                
-            except KeyboardInterrupt:
-                logging.info("\n⏹️  Bot stopped by user")
-                self.analyze_performance()
-                if self.redis_client:
-                    self.redis_client.set('bot_status', 'Stopped')
-                break
-            except Exception as e:
-                error_count += 1
-                logging.error(f"Error in monitoring loop: {e}")
-                import traceback
-                logging.error(f"Traceback: {traceback.format_exc()}")
-                
-                if self.redis_client:
-                    self.redis_client.set('last_error', str(e))
-                
-                if error_count >= max_errors:
-                    logging.error(f"Too many errors. Waiting {self.config['monitoring']['error_retry_delay_seconds']} seconds...")
-                    time.sleep(self.config['monitoring']['error_retry_delay_seconds'])
-                    error_count = 0
-                else:
-                    time.sleep(30)               
 
 
 if __name__ == "__main__":
