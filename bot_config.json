@@ -9,7 +9,7 @@
     "default_bid_elite": 150
   },
   
-  "smart_bidding": {
+ "smart_bidding": {
     "enabled": true,
     "max_existing_bids": 500,
     "early_bird_minutes": 60,
