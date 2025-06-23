@@ -14,6 +14,8 @@ import redis
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any, Tuple
 from spam_filter import SpamFilter
+from currency_converter_freelancer import CurrencyConverter
+from contest_handler import ContestHandler
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -48,8 +50,17 @@ class AutoWorkMinimal:
             self.spam_filter = None
             self.spam_filter_enabled = False
         
+        # Initialize currency converter
+        try:
+            self.currency_converter = CurrencyConverter(freelancer_token=self.token)
+            logging.info("✓ Currency converter initialized")
+        except Exception as e:
+            logging.warning(f"Currency converter initialization failed: {e}")
+            self.currency_converter = None
+        
         # Initialize premium filter
         try:
+            from premium_filter import PremiumProjectFilter
             self.premium_filter = PremiumProjectFilter(self.config)
             self.premium_mode = self.config.get('quality_filters', {}).get('enabled', False)
             logging.info(f"✓ Premium filter initialized: {'Enabled' if self.premium_mode else 'Disabled'}")
@@ -57,6 +68,19 @@ class AutoWorkMinimal:
             logging.warning(f"Premium filter initialization failed: {e}")
             self.premium_filter = None
             self.premium_mode = False
+        
+        # Initialize contest handler
+        self.contests_enabled = self.config.get('contests', {}).get('enabled', False)
+        if self.contests_enabled:
+            try:
+                self.contest_handler = ContestHandler(self.token, self.user_id)
+                logging.info("✓ Contest handler initialized")
+            except Exception as e:
+                logging.warning(f"Contest handler initialization failed: {e}")
+                self.contest_handler = None
+                self.contests_enabled = False
+        else:
+            self.contest_handler = None
         
         # Enhanced tracking
         self.processed_projects = set()
@@ -463,6 +487,13 @@ class AutoWorkMinimal:
                     elite_percentage = (self.elite_bid_count / self.bid_count * 100)
                     self.redis_client.set('elite_percentage', elite_percentage)
                 
+                # Save contest stats if enabled
+                if self.contests_enabled and self.contest_handler:
+                    contest_summary = self.contest_handler.get_contest_summary()
+                    self.redis_client.set('contests_entered', contest_summary['total_entered'])
+                    self.redis_client.set('contests_won', contest_summary['total_wins'])
+                    self.redis_client.set('contest_prize_money', contest_summary['total_prize_money'])
+                
             except Exception as e:
                 logging.error(f"Error saving state: {e}")
 
@@ -663,29 +694,37 @@ class AutoWorkMinimal:
             budget = project.get('budget', {})
             if isinstance(budget, dict):
                 min_budget = float(budget.get('minimum', 0))
+                currency_code = project.get('currency', {}).get('code', 'USD')
+                
+                # Convert to USD for comparison
+                if self.currency_converter:
+                    min_budget_usd = self.currency_converter.to_usd(min_budget, currency_code)
+                else:
+                    min_budget_usd = min_budget
             else:
                 min_budget = 0
+                min_budget_usd = 0
             
             # Premium budget tiers
             if self.premium_mode:
-                if min_budget >= 2000:
+                if min_budget_usd >= 2000:
                     score += 40
                     reasons.append("💰 Enterprise budget")
-                elif min_budget >= 1000:
+                elif min_budget_usd >= 1000:
                     score += 30
                     reasons.append("💵 Premium budget")
-                elif min_budget >= 500:
+                elif min_budget_usd >= 500:
                     score += 20
                     reasons.append("💴 Good budget")
             else:
                 # Standard budget scoring
-                if min_budget >= 500:
+                if min_budget_usd >= 500:
                     score += 30
                     reasons.append("💰 High budget")
-                elif min_budget >= 200:
+                elif min_budget_usd >= 250:
                     score += 15
                     reasons.append("💵 Good budget")
-                elif min_budget < self.config['smart_bidding']['min_profitable_budget']:
+                elif min_budget_usd < self.config['smart_bidding']['min_profitable_budget']:
                     score -= 40
                     reasons.append("💸 Low budget")
             
@@ -923,6 +962,24 @@ class AutoWorkMinimal:
             logging.error(f"Error selecting bid message: {e}")
             return "I am interested in your project and have the skills needed to complete it successfully. I can deliver within the specified timeframe. Let's discuss the details."
     
+    def _determine_project_category(self, project: Dict) -> str:
+        """Determine project category based on skills and title"""
+        # This is a simplified version - you can make it more sophisticated
+        title = project.get('title', '').lower()
+        skills = [job.get('name', '').lower() for job in project.get('jobs', [])]
+        
+        # Check for specific categories
+        if any(word in title or any(word in skill for skill in skills) for word in ['web', 'website', 'frontend', 'backend']):
+            return 'web_development'
+        elif any(word in title or any(word in skill for skill in skills) for word in ['mobile', 'android', 'ios', 'app']):
+            return 'mobile_development'
+        elif any(word in title or any(word in skill for skill in skills) for word in ['blockchain', 'crypto', 'smart contract']):
+            return 'blockchain'
+        elif any(word in title or any(word in skill for skill in skills) for word in ['ai', 'ml', 'machine learning', 'artificial intelligence']):
+            return 'ai_ml'
+        
+        return 'general'
+    
     def _get_project_skills(self, project: Dict) -> List[str]:
         """Extract project skills"""
         project_skills = []
@@ -1065,12 +1122,22 @@ class AutoWorkMinimal:
             budget = project.get('budget', {})
             if isinstance(budget, dict):
                 min_budget = float(budget.get('minimum', 0))
+                currency_code = project.get('currency', {}).get('code', 'USD')
+                
+                # Convert to USD for comparison
+                if self.currency_converter:
+                    min_budget_usd = self.currency_converter.to_usd(min_budget, currency_code)
+                else:
+                    min_budget_usd = min_budget
             else:
                 min_budget = 0
+                min_budget_usd = 0
+                currency_code = 'USD'
                 
-            if min_budget < self.config['smart_bidding']['min_profitable_budget']:
+            if min_budget_usd < self.config['smart_bidding']['min_profitable_budget']:
                 self.skipped_projects['low_budget'] += 1
-                return False, f"Budget too low (${min_budget})"
+                budget_info = f"{currency_code} {min_budget:.2f} = ${min_budget_usd:.2f} USD"
+                return False, f"Budget too low ({budget_info})"
             
             # Check client (optional)
             if self.config['client_filtering']['enabled']:
@@ -1328,8 +1395,20 @@ class AutoWorkMinimal:
             # Log bid details
             project_type = "🌟 ELITE" if is_elite else "Regular"
             logging.info(f"   Type: {project_type}")
-            logging.info(f"   💰 Bid: ${bid_amount:.2f} (Budget: ${details.get('budget', {}).get('minimum', 0)}-${details.get('budget', {}).get('maximum', 0)})")
-            logging.info(f"   📅 Delivery: {delivery_days} days")
+            
+            # Format budget info with currency conversion
+            budget_min = details.get('budget', {}).get('minimum', 0)
+            budget_max = details.get('budget', {}).get('maximum', 0)
+            currency_code = project.get('currency', {}).get('code', 'USD')
+            
+            if self.currency_converter:
+                budget_info = self.currency_converter.format_budget_info(budget_min, currency_code)
+                budget_max_info = self.currency_converter.format_budget_info(budget_max, currency_code)
+                logging.info(f"   💰 Budget: {budget_info} - {budget_max_info}")
+            else:
+                logging.info(f"   💰 Budget: {currency_code} {budget_min} - {budget_max}")
+                
+            logging.info(f"   💰 Bid: ${bid_amount:.2f} with {delivery_days}-day delivery")
             logging.info(f"   📝 Message variant: {variant_used}")
             
             if is_elite:
@@ -1522,6 +1601,89 @@ class AutoWorkMinimal:
                 self.redis_client.set('last_error', str(e))
             return []
 
+    def process_contests(self):
+        """Process and enter contests"""
+        if not self.contest_handler:
+            return
+        
+        try:
+            logging.info("\n🏆 Checking for contests...")
+            
+            # Get active contests
+            contests = self.contest_handler.get_active_contests(limit=30)
+            
+            if not contests:
+                logging.info("No active contests found")
+                return
+            
+            logging.info(f"Found {len(contests)} active contests")
+            
+            new_entries = 0
+            for contest in contests:
+                contest_id = contest.get('id')
+                
+                # Check if already processed
+                if contest_id in self.contest_handler.processed_contests:
+                    continue
+                
+                # Mark as processed
+                self.contest_handler.processed_contests.add(contest_id)
+                
+                # Check if should enter
+                should_enter, reason = self.contest_handler.should_enter_contest(contest, self.config)
+                
+                if not should_enter:
+                    logging.debug(f"Skipping contest {contest.get('title', '')[:40]}... - {reason}")
+                    continue
+                
+                # Log contest details
+                logging.info(f"\n{'='*60}")
+                logging.info(f"🎯 Found eligible contest: {contest.get('title', '')[:50]}...")
+                logging.info(f"   Prize: ${contest.get('prize', 0)}")
+                logging.info(f"   Type: {contest.get('type', {}).get('name', 'Unknown')}")
+                logging.info(f"   Entries: {contest.get('entry_count', 0)}")
+                logging.info(f"   Skills: {', '.join([j.get('name', '') for j in contest.get('jobs', [])[:3]])}")
+                
+                # Create and submit entry
+                entry_data = self.contest_handler.create_contest_entry(contest, self.config)
+                
+                if entry_data:
+                    success = self.contest_handler.submit_contest_entry(contest_id, entry_data)
+                    
+                    if success:
+                        new_entries += 1
+                        logging.info(f"✅ Successfully entered contest!")
+                        
+                        # Small delay between entries
+                        time.sleep(3)
+                    else:
+                        logging.error(f"❌ Failed to enter contest")
+                
+                # Limit entries per cycle
+                if new_entries >= 5:
+                    logging.info("Reached contest entry limit for this cycle")
+                    break
+            
+            # Save state
+            self.contest_handler.save_contest_state()
+            
+            # Check results of previous contests
+            self.contest_handler.check_contest_results()
+            
+            # Log summary
+            if new_entries > 0:
+                summary = self.contest_handler.get_contest_summary()
+                logging.info(f"\n📊 Contest Summary:")
+                logging.info(f"   Total entered: {summary['total_entered']}")
+                logging.info(f"   Total wins: {summary['total_wins']}")
+                logging.info(f"   Win rate: {summary['win_rate']:.1f}%")
+                logging.info(f"   Total prize money: ${summary['total_prize_money']}")
+                
+        except Exception as e:
+            logging.error(f"Error processing contests: {e}")
+            import traceback
+            logging.error(f"Traceback: {traceback.format_exc()}")
+
     def analyze_performance(self):
         """Analyze and log performance metrics including premium stats"""
         if not self.config['performance']['track_analytics'] or self.bid_count == 0:
@@ -1606,6 +1768,16 @@ class AutoWorkMinimal:
                 total_variants = sum(self.message_variants.values())
                 percentage = (count / total_variants * 100) if total_variants > 0 else 0
                 logging.info(f"  {variant}: {count} ({percentage:.1f}%)")
+        
+        # Contest performance
+        if self.contests_enabled and self.contest_handler:
+            contest_summary = self.contest_handler.get_contest_summary()
+            if contest_summary['total_entered'] > 0:
+                logging.info("\n🏆 Contest Performance:")
+                logging.info(f"  Contests entered: {contest_summary['total_entered']}")
+                logging.info(f"  Contests won: {contest_summary['total_wins']}")
+                logging.info(f"  Win rate: {contest_summary['win_rate']:.1f}%")
+                logging.info(f"  Total prize money: ${contest_summary['total_prize_money']}")
 
     def realtime_monitor_with_bidding(self):
         """Enhanced monitoring loop with better rate limit handling"""
@@ -1615,6 +1787,7 @@ class AutoWorkMinimal:
         logging.info(f"Client Filtering: {'Enabled' if self.config['client_filtering']['enabled'] else 'Disabled'}")
         logging.info(f"Portfolio Matching: {'Enabled' if self.config['filtering']['portfolio_matching'] else 'Disabled'}")
         logging.info(f"A/B Testing: {'Enabled' if self.config['performance']['ab_testing_enabled'] else 'Disabled'}")
+        logging.info(f"Contests: {'Enabled' if self.contests_enabled else 'Disabled'}")
         
         error_count = 0
         max_errors = self.config['monitoring']['max_consecutive_errors']
@@ -1722,6 +1895,10 @@ class AutoWorkMinimal:
                 # Analyze performance periodically
                 if cycle_count % self.config['performance']['analyze_every_n_cycles'] == 0:
                     self.analyze_performance()
+                
+                # Process contests periodically (less frequently than projects)
+                if self.contests_enabled and cycle_count % 10 == 0:  # Every 10 cycles
+                    self.process_contests()
                 
                 # Save state
                 self.save_state_to_redis()

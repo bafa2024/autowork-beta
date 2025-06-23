@@ -1,0 +1,87 @@
+{
+  "logo_design": {
+    "description": "Hello! I've created a professional logo design for {title}.\n\nDesign Concept:\n• Clean and modern aesthetic\n• Scalable for all applications\n• Memorable and unique\n• Reflects your brand values\n\nThe logo works great in both color and black & white, and includes variations for different use cases.\n\nI'm happy to make any adjustments to perfectly match your vision!",
+    "file_requirements": ["PNG", "AI", "PSD", "PDF"],
+    "deliverables": [
+      "Primary logo",
+      "Icon version", 
+      "Black & white version",
+      "Brand guidelines"
+    ]
+  },
+  
+  "naming": {
+    "description": "Hi! I've brainstormed creative names for {title}.\n\nEach name is:\n✓ Easy to pronounce and remember\n✓ Available as .com domain\n✓ No trademark conflicts\n✓ Works globally\n\nI've included explanations for each suggestion below.",
+    "name_categories": {
+      "tech_startup": [
+        "TechNova", "CodePulse", "DataFlow", "CloudSync", "SmartHub",
+        "NextGen", "InnoCore", "TechVault", "ProSphere", "AppForge"
+      ],
+      "ecommerce": [
+        "ShopWise", "BuyDirect", "MarketPro", "QuickCart", "EasyShop",
+        "PrimeDeals", "ValueHub", "ShopSmart", "DealFlow", "BuyNow"
+      ],
+      "consulting": [
+        "ProAdvise", "ExpertHub", "ConsultPro", "WiseGuide", "TrustAdvisor",
+        "PeakConsult", "EliteAdvise", "ProPartners", "NextLevel", "GrowthPro"
+      ],
+      "generic": [
+        "Nexus", "Vertex", "Zenith", "Apex", "Prime",
+        "Core", "Edge", "Peak", "Nova", "Fusion"
+      ]
+    }
+  },
+  
+  "article_writing": {
+    "description": "Hello! I've written an engaging article for {title}.\n\nArticle highlights:\n• Well-researched with credible sources\n• SEO-optimized with relevant keywords\n• Engaging and easy to read\n• {word_count} words as requested\n• Includes compelling introduction and conclusion\n\nI can adjust the tone, style, or content based on your feedback!",
+    "article_structure": {
+      "introduction": "Hook reader with compelling opening",
+      "body": "3-5 main points with supporting evidence",
+      "conclusion": "Summary and call to action"
+    }
+  },
+  
+  "graphic_design": {
+    "description": "Hi! I've created an eye-catching design for {title}.\n\nDesign features:\n• Modern and professional layout\n• Strategic use of color and typography\n• Clear visual hierarchy\n• Print and web-ready files\n\nAll source files are included for future edits. Let me know if you'd like any adjustments!",
+    "file_formats": ["PSD", "AI", "PNG", "JPG", "PDF"]
+  },
+  
+  "website_design": {
+    "description": "Hello! I've designed a stunning website concept for {title}.\n\nDesign includes:\n• Modern, responsive layout\n• User-friendly navigation\n• Mobile-optimized design\n• Clear call-to-action elements\n• Professional color scheme\n\nI can provide HTML/CSS if needed or work with your developer for implementation.",
+    "deliverables": [
+      "Homepage design",
+      "Inner page templates",
+      "Mobile versions",
+      "Style guide"
+    ]
+  },
+  
+  "tshirt_design": {
+    "description": "Hi! I've created an awesome t-shirt design for {title}.\n\nDesign details:\n• Print-ready artwork\n• Works on multiple shirt colors\n• Scalable vector graphics\n• Commercial use rights included\n\nI've included mockups on different shirt colors. Happy to adjust colors, size, or style!",
+    "specifications": {
+      "resolution": "300 DPI",
+      "color_mode": "CMYK for print",
+      "formats": ["AI", "EPS", "PNG", "PDF"]
+    }
+  },
+  
+  "business_card": {
+    "description": "Hello! I've designed professional business cards for {title}.\n\nDesign includes:\n• Clean, memorable layout\n• Double-sided design\n• Print-ready with bleeds\n• Multiple color variations\n\nAll files are ready for printing at any professional print shop.",
+    "specifications": {
+      "size": "3.5 x 2 inches",
+      "bleed": "0.125 inches",
+      "resolution": "300 DPI"
+    }
+  },
+  
+  "banner_design": {
+    "description": "Hi! I've created eye-catching banners for {title}.\n\nBanner set includes:\n• Multiple size variations\n• Retina-ready graphics\n• Animated and static versions\n• Brand-consistent design\n\nOptimized for web performance while maintaining visual quality!",
+    "standard_sizes": [
+      "728x90 (Leaderboard)",
+      "300x250 (Medium Rectangle)",
+      "320x50 (Mobile Banner)",
+      "300x600 (Half Page)",
+      "970x250 (Billboard)"
+    ]
+  }
+}

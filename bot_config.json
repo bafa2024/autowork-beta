@@ -59,5 +59,13 @@
     "track_analytics": true,
     "ab_testing_enabled": true,
     "analyze_every_n_cycles": 10
-  }
+  },
+  "contests": {
+  "enabled": true,
+  "min_prize": 100,
+  "max_existing_entries": 50,
+  "min_hours_remaining": 24,
+  "allowed_types": ["Logo Design", "Naming", "Graphic Design", "Web Design", "T-Shirt Design", "Business Card Design", "Banner Design"],
+  "skills": ["Graphic Design", "Content Writing", "Web Development", "UI/UX Design", "SEO", "Digital Marketing"]
+}
 }
