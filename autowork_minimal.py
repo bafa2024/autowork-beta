@@ -13,6 +13,7 @@ import requests
 import redis
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any, Tuple
+from spam_filter import SpamFilter
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -32,10 +33,21 @@ class AutoWorkMinimal:
         # Initialize Redis connection
         self.redis_client = self.init_redis()
         
-        # Load configurations
+        # Load configurations FIRST (before spam filter)
         self.bid_messages = self.load_bid_messages()
         self.skills_map = self.load_skills_map()
-        self.config = self.load_config()
+        self.config = self.load_config()  # This MUST come before spam filter
+        
+        # Initialize spam filter AFTER config is loaded
+        try:
+            from spam_filter import SpamFilter
+            self.spam_filter = SpamFilter()
+            self.spam_filter_enabled = self.config.get('spam_filter', {}).get('enabled', True)
+            logging.info(f"✓ Spam filter initialized: {'Enabled' if self.spam_filter_enabled else 'Disabled'}")
+        except ImportError:
+            logging.warning("Spam filter module not found - continuing without spam filtering")
+            self.spam_filter = None
+            self.spam_filter_enabled = False
         
         # Enhanced tracking
         self.processed_projects = set()
@@ -49,13 +61,14 @@ class AutoWorkMinimal:
         self.start_time = datetime.now()
         self.today_date = datetime.now().date()
         
-        # Skip tracking
+        # Skip tracking - including spam
         self.skipped_projects = {
             'too_many_bids': 0,
             'low_budget': 0,
             'bad_client': 0,
             'not_matched': 0,
-            'invalid_data': 0
+            'invalid_data': 0,
+            'spam': 0  # Add spam tracking
         }
         
         # Performance tracking
@@ -882,13 +895,23 @@ class AutoWorkMinimal:
             }
 
     def should_bid_on_project(self, project: Dict) -> Tuple[bool, str]:
-        """Determine if should bid on a project with reason"""
+        """Determine if should bid on a project with reason (includes spam check)"""
         try:
             project_id = project.get('id')
             
             # Skip if already processed
             if project_id in self.processed_projects:
                 return False, "Already processed"
+            
+            # SPAM CHECK - Do this first to save API calls
+            if self.spam_filter_enabled and self.spam_filter:
+                is_spam, spam_reasons = self.spam_filter.is_spam(project)
+                if is_spam:
+                    self.skipped_projects['spam'] += 1
+                    logging.warning(f"🚫 SPAM DETECTED: {project.get('title', '')[:50]}...")
+                    logging.warning(f"   Reasons: {', '.join(spam_reasons[:3])}")
+                    self.processed_projects.add(project_id)  # Mark as processed to avoid rechecking
+                    return False, f"Spam: {spam_reasons[0]}"
             
             # Check bid count
             bid_stats = project.get('bid_stats', {})
@@ -1360,13 +1383,25 @@ class AutoWorkMinimal:
         logging.info(f"  Elite Projects: {self.elite_bid_count} ({elite_percentage:.1f}%)")
         logging.info(f"  Bids Today: {self.bids_today}")
         
-        # Skip reasons
+        # Skip reasons including spam
         total_skipped = sum(self.skipped_projects.values())
         if total_skipped > 0:
             logging.info(f"\nSkipped Projects: {total_skipped}")
-            for reason, count in self.skipped_projects.items():
+            for reason, count in sorted(self.skipped_projects.items(), key=lambda x: x[1], reverse=True):
                 percentage = (count / total_skipped * 100)
                 logging.info(f"  {reason.replace('_', ' ').title()}: {count} ({percentage:.1f}%)")
+        
+        # Spam filter statistics
+        if self.spam_filter_enabled:
+            spam_stats = self.spam_filter.get_stats()
+            if spam_stats['total_checked'] > 0:
+                logging.info(f"\n🚫 Spam Filter Stats:")
+                logging.info(f"  Projects checked: {spam_stats['total_checked']}")
+                logging.info(f"  Spam detected: {spam_stats['spam_detected']} ({spam_stats['spam_rate']:.1f}%)")
+                if spam_stats['top_reasons']:
+                    logging.info(f"  Top spam reasons:")
+                    for reason, count in spam_stats['top_reasons'][:3]:
+                        logging.info(f"    - {reason}: {count}")
         
         # Best performing hours
         if self.performance_data.get('by_hour'):

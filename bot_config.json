@@ -8,6 +8,7 @@
     "default_bid_regular": 100,
     "default_bid_elite": 150
   },
+  
   "smart_bidding": {
     "enabled": true,
     "max_existing_bids": 500,
@@ -15,8 +16,9 @@
     "instant_bid_threshold": 10,
     "competitive_pricing": true,
     "undercut_percentage": 0.95,
-    "min_profitable_budget": 50
+    "min_profitable_budget": 30
   },
+  
   "client_filtering": {
     "enabled": false,
     "min_client_rating": 3.0,
@@ -24,17 +26,26 @@
     "min_projects_posted": 0,
     "check_payment_verified": false
   },
+  
   "elite_projects": {
     "auto_sign_nda": true,
     "auto_sign_ip_agreement": true,
     "track_elite_stats": true
   },
+  
   "filtering": {
     "max_projects_per_cycle": 50,
     "skip_projects_with_bids_above": 100,
     "portfolio_matching": false,
     "min_skill_match_score": 0.1
   },
+  
+  "spam_filter": {
+    "enabled": true,
+    "log_spam_reasons": true,
+    "save_spam_projects": false
+  },
+  
   "monitoring": {
     "check_interval_seconds": 30,
     "peak_hours_interval": 20,
@@ -43,6 +54,7 @@
     "max_consecutive_errors": 5,
     "daily_bid_limit": 100
   },
+  
   "performance": {
     "track_analytics": true,
     "ab_testing_enabled": true,
