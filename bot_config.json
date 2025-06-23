@@ -16,7 +16,7 @@
     "instant_bid_threshold": 10,
     "competitive_pricing": true,
     "undercut_percentage": 0.95,
-    "min_profitable_budget": 30
+    "min_profitable_budget": 250
   },
   
   "client_filtering": {
