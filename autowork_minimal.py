@@ -923,7 +923,7 @@ class AutoWorkMinimal:
             logging.error(f"Error selecting bid message: {e}")
             return "I am interested in your project and have the skills needed to complete it successfully. I can deliver within the specified timeframe. Let's discuss the details."
     
-     def _get_project_skills(self, project: Dict) -> List[str]:
+    def _get_project_skills(self, project: Dict) -> List[str]:
         """Extract project skills"""
         project_skills = []
         jobs = project.get('jobs', [])
@@ -1164,7 +1164,7 @@ class AutoWorkMinimal:
             logging.error(f"   Error checking/signing IP agreement: {e}")
             return True
 
-   def track_bid_performance(self, project: Dict, bid_amount: float, priority_score: int, variant_used: str = None):
+    def track_bid_performance(self, project: Dict, bid_amount: float, priority_score: int, variant_used: str = None):
         """Track bid performance including quality metrics"""
         if not self.config['performance']['track_analytics']:
             return
