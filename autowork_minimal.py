@@ -19,7 +19,7 @@ from spam_filter import SpamFilter
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class AutoWorkMinimal:
-     def __init__(self):
+    def __init__(self):
         self.token = self.load_token()
         self.user_id = os.environ.get('FREELANCER_USER_ID', '45214417')
         self.api_base = "https://www.freelancer.com/api"
