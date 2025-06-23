@@ -1867,6 +1867,158 @@ def realtime_monitor_with_bidding(self):
                     time.sleep(30)
 
 
+    def realtime_monitor_with_bidding(self):
+        """Enhanced monitoring loop with complete bidding logic"""
+        logging.info("🚀 Starting Enhanced AutoWork Bot...")
+        logging.info(f"User ID: {self.user_id}")
+        logging.info(f"Smart Features: {'Enabled' if self.config['smart_bidding']['enabled'] else 'Disabled'}")
+        logging.info(f"Client Filtering: {'Enabled' if self.config['client_filtering']['enabled'] else 'Disabled'}")
+        logging.info(f"Portfolio Matching: {'Enabled' if self.config['filtering']['portfolio_matching'] else 'Disabled'}")
+        logging.info(f"A/B Testing: {'Enabled' if self.config['performance']['ab_testing_enabled'] else 'Disabled'}")
+        
+        error_count = 0
+        max_errors = self.config['monitoring']['max_consecutive_errors']
+        cycle_count = 0
+        
+        # Update Redis status
+        if self.redis_client:
+            self.redis_client.set('bot_status', 'Running - Enhanced Mode')
+            self.redis_client.set('bot_start_time', self.start_time.isoformat())
+        
+        while True:
+            try:
+                cycle_count += 1
+                
+                # Check daily limit
+                if self.bids_today >= self.config['monitoring']['daily_bid_limit']:
+                    logging.warning(f"Daily bid limit reached ({self.config['monitoring']['daily_bid_limit']})")
+                    hours_until_midnight = (24 - datetime.now().hour)
+                    logging.info(f"Waiting {hours_until_midnight} hours until midnight...")
+                    time.sleep(hours_until_midnight * 3600)
+                    continue
+                
+                # Fetch and process projects
+                projects = self.get_active_projects(limit=self.config['filtering']['max_projects_per_cycle'])
+                
+                if projects:
+                    logging.info(f"\n🔄 Cycle {cycle_count}: Processing top projects from {len(projects)} fetched")
+                    
+                    new_bids = 0
+                    projects_analyzed = 0
+                    
+                    # Process each project
+                    for project in projects:
+                        project_id = project.get("id")
+                        
+                        # Skip if already processed
+                        if project_id in self.processed_projects:
+                            continue
+                        
+                        projects_analyzed += 1
+                        
+                        # Check if should bid
+                        should_bid, reason = self.should_bid_on_project(project)
+                        
+                        if not should_bid:
+                            logging.debug(f"⏭️  Skipping: {project.get('title', 'Unknown')[:40]}... - {reason}")
+                            self.processed_projects.add(project_id)
+                            continue
+                        
+                        # Place bid
+                        logging.info(f"\n{'='*60}")
+                        logging.info(f"🎯 Attempting to bid on: {project.get('title', 'Unknown')[:50]}...")
+                        
+                        success = self.place_bid(project)
+                        
+                        if success:
+                            new_bids += 1
+                            
+                            # Smart delay based on priority
+                            priority_score, _ = self.calculate_bid_priority(project)
+                            if priority_score > 150:
+                                delay = 2  # Fast for high priority
+                            elif priority_score > 100:
+                                delay = 3
+                            else:
+                                delay = 5
+                            
+                            logging.info(f"⏳ Waiting {delay} seconds before next bid...")
+                            time.sleep(delay)
+                        
+                        # Stop if we've bid enough this cycle
+                        if new_bids >= 10:  # Max 10 bids per cycle
+                            logging.info("📊 Reached cycle bid limit (10 bids)")
+                            break
+                    
+                    # Log cycle summary
+                    if projects_analyzed == 0:
+                        logging.info("No new projects to analyze")
+                    else:
+                        logging.info(f"\n📊 Cycle Summary:")
+                        logging.info(f"   Projects analyzed: {projects_analyzed}")
+                        logging.info(f"   Bids placed: {new_bids}")
+                        logging.info(f"   Projects skipped: {projects_analyzed - new_bids}")
+                    
+                    error_count = 0  # Reset on success
+                else:
+                    error_count += 1
+                    logging.warning(f"No projects fetched (error count: {error_count}/{max_errors})")
+                    
+                    if error_count >= max_errors:
+                        logging.error(f"Max errors reached. Waiting {self.config['monitoring']['error_retry_delay_seconds']} seconds...")
+                        time.sleep(self.config['monitoring']['error_retry_delay_seconds'])
+                        error_count = 0
+                
+                # Analyze performance periodically
+                if cycle_count % self.config['performance']['analyze_every_n_cycles'] == 0:
+                    self.analyze_performance()
+                
+                # Save state
+                self.save_state_to_redis()
+                
+                # Determine wait time based on time of day
+                current_hour = datetime.now().hour
+                if 2 <= current_hour <= 6:  # Late night - less activity
+                    wait_time = self.config['monitoring']['off_hours_interval']
+                elif 8 <= current_hour <= 22:  # Peak hours
+                    wait_time = self.config['monitoring']['peak_hours_interval']
+                else:
+                    wait_time = self.config['monitoring']['check_interval_seconds']
+                
+                # Show summary
+                if self.bid_count > 0:
+                    win_rate = (self.wins_count / self.bid_count * 100)
+                    elite_rate = (self.elite_bid_count / self.bid_count * 100)
+                    skip_rate = (sum(self.skipped_projects.values()) / (self.bid_count + sum(self.skipped_projects.values())) * 100)
+                    
+                    logging.info(f"\n📈 Overall Stats: {self.bid_count} total bids | {win_rate:.1f}% win rate | {elite_rate:.1f}% elite | {skip_rate:.1f}% filtered")
+                
+                logging.info(f"💤 Waiting {wait_time} seconds until next cycle...")
+                time.sleep(wait_time)
+                
+            except KeyboardInterrupt:
+                logging.info("\n⏹️  Bot stopped by user")
+                self.analyze_performance()
+                if self.redis_client:
+                    self.redis_client.set('bot_status', 'Stopped')
+                break
+            except Exception as e:
+                error_count += 1
+                logging.error(f"Error in monitoring loop: {e}")
+                import traceback
+                logging.error(f"Traceback: {traceback.format_exc()}")
+                
+                if self.redis_client:
+                    self.redis_client.set('last_error', str(e))
+                
+                if error_count >= max_errors:
+                    logging.error(f"Too many errors. Waiting {self.config['monitoring']['error_retry_delay_seconds']} seconds...")
+                    time.sleep(self.config['monitoring']['error_retry_delay_seconds'])
+                    error_count = 0
+                else:
+                    time.sleep(30)               
+
+
 if __name__ == "__main__":
     # For local testing
     bot = AutoWorkMinimal()

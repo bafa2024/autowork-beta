@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
-Cron Monitor for Render Deployment - Minimal Version
-Runs the AutoWork bot continuously without external dependencies
+Fixed Cron Monitor for Render Deployment
 """
 
 import os
@@ -66,9 +65,82 @@ def run_autowork():
         logger.info("Creating bot instance...")
         app = AutoWorkMinimal()
         
-        # Run the real-time monitor
-        logger.info("Starting real-time monitoring...")
-        app.realtime_monitor_with_bidding()
+        # Check if the method exists
+        if hasattr(app, 'realtime_monitor_with_bidding'):
+            logger.info("Starting real-time monitoring with realtime_monitor_with_bidding...")
+            app.realtime_monitor_with_bidding()
+        else:
+            logger.warning("realtime_monitor_with_bidding method not found, falling back to basic monitoring...")
+            # Fallback: Run a simple monitoring loop
+            logger.info("Running basic monitoring loop...")
+            
+            error_count = 0
+            max_errors = 5
+            
+            while True:
+                try:
+                    # Fetch projects
+                    projects = app.get_active_projects(limit=50)
+                    
+                    if projects:
+                        logger.info(f"Found {len(projects)} active projects")
+                        
+                        new_bids = 0
+                        for project in projects:
+                            project_id = project.get("id")
+                            
+                            # Skip if already processed
+                            if project_id in app.processed_projects:
+                                continue
+                            
+                            # Check if should bid
+                            should_bid, reason = app.should_bid_on_project(project)
+                            
+                            if should_bid:
+                                logger.info(f"Bidding on: {project.get('title', 'Unknown')[:50]}...")
+                                success = app.place_bid(project)
+                                
+                                if success:
+                                    new_bids += 1
+                                    time.sleep(5)  # Wait between bids
+                                
+                                # Limit bids per cycle
+                                if new_bids >= 5:
+                                    break
+                            else:
+                                app.processed_projects.add(project_id)
+                        
+                        logger.info(f"Placed {new_bids} new bids this cycle")
+                        error_count = 0
+                    else:
+                        error_count += 1
+                        logger.warning(f"No projects fetched (error count: {error_count}/{max_errors})")
+                        
+                        if error_count >= max_errors:
+                            logger.error("Max errors reached. Waiting 5 minutes...")
+                            time.sleep(300)
+                            error_count = 0
+                    
+                    # Save state
+                    app.save_state_to_redis()
+                    
+                    # Wait before next cycle
+                    wait_time = 60  # 1 minute
+                    logger.info(f"Waiting {wait_time} seconds until next cycle...")
+                    time.sleep(wait_time)
+                    
+                except KeyboardInterrupt:
+                    logger.info("Bot stopped by user")
+                    break
+                except Exception as e:
+                    error_count += 1
+                    logger.error(f"Error in monitoring loop: {e}")
+                    if error_count >= max_errors:
+                        logger.error("Too many errors. Waiting 5 minutes...")
+                        time.sleep(300)
+                        error_count = 0
+                    else:
+                        time.sleep(30)
         
     except KeyboardInterrupt:
         logger.info("Bot stopped by user")
@@ -87,14 +159,6 @@ def main():
     logger.info("="*60)
     logger.info(f"Current time: {datetime.now()}")
     logger.info(f"Process ID: {os.getpid()}")
-    
-    # Log all environment variables (hiding sensitive data)
-    logger.info("Environment variables:")
-    for key in sorted(os.environ.keys()):
-        if 'TOKEN' in key or 'KEY' in key or 'SECRET' in key:
-            logger.info(f"  {key}: ***hidden***")
-        else:
-            logger.info(f"  {key}: {os.environ[key]}")
     
     # Check environment before starting
     if not check_environment():
