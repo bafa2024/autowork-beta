@@ -1,0 +1,122 @@
+{
+  "bidding": {
+    "delivery_days": 7,
+    "express_delivery_days": 3,
+    "min_bid_delay_seconds": 10,
+    "bid_multiplier_regular": 1.25,
+    "bid_multiplier_elite": 1.35,
+    "default_bid_regular": 250,
+    "default_bid_elite": 500
+  },
+  
+  "smart_bidding": {
+    "enabled": true,
+    "max_existing_bids": 20,
+    "early_bird_minutes": 45,
+    "instant_bid_threshold": 5,
+    "competitive_pricing": true,
+    "undercut_percentage": 0.90,
+    "min_profitable_budget": 100
+  },
+  
+  "client_filtering": {
+    "enabled": true,
+    "min_client_rating": 4.5,
+    "min_completion_rate": 0.9,
+    "min_projects_posted": 5,
+    "check_payment_verified": true
+  },
+  
+  "elite_projects": {
+    "auto_sign_nda": true,
+    "auto_sign_ip_agreement": true,
+    "track_elite_stats": true,
+    "prefer_elite": true,
+    "elite_bonus_score": 50
+  },
+  
+  "filtering": {
+    "max_projects_per_cycle": 30,
+    "skip_projects_with_bids_above": 25,
+    "portfolio_matching": true,
+    "min_skill_match_score": 0.6,
+    "prefer_long_term": true,
+    "min_description_length": 200
+  },
+  
+  "quality_filters": {
+    "enabled": true,
+    "min_project_budget": 250,
+    "preferred_budget_range": {
+      "min": 500,
+      "max": 5000
+    },
+    "avoid_keywords": [
+      "urgent", "asap", "immediately", "simple", "easy", "quick",
+      "data entry", "copy paste", "typing"
+    ],
+    "prefer_keywords": [
+      "long term", "ongoing", "full stack", "architect", "senior",
+      "consultant", "expert", "professional", "enterprise", "startup",
+      "mvp", "saas", "api", "integration", "custom", "complex"
+    ],
+    "min_employer_rating": 4.0,
+    "min_employer_reviews": 5,
+    "prefer_verified_payment": true,
+    "prefer_featured_projects": true
+  },
+  
+  "premium_categories": {
+    "web_development": {
+      "keywords": ["React", "Vue", "Angular", "Node.js", "Django", "Laravel", "Full Stack"],
+      "min_budget": 500,
+      "priority_boost": 20
+    },
+    "mobile_development": {
+      "keywords": ["React Native", "Flutter", "iOS", "Android", "Swift", "Kotlin"],
+      "min_budget": 1000,
+      "priority_boost": 25
+    },
+    "blockchain": {
+      "keywords": ["Smart Contracts", "Solidity", "Web3", "DeFi", "NFT", "Ethereum"],
+      "min_budget": 1500,
+      "priority_boost": 30
+    },
+    "ai_ml": {
+      "keywords": ["Machine Learning", "AI", "ChatGPT", "OpenAI", "TensorFlow", "PyTorch"],
+      "min_budget": 1000,
+      "priority_boost": 35
+    },
+    "cloud_devops": {
+      "keywords": ["AWS", "Azure", "GCP", "Kubernetes", "Docker", "Terraform"],
+      "min_budget": 800,
+      "priority_boost": 25
+    },
+    "cybersecurity": {
+      "keywords": ["Penetration Testing", "Security Audit", "Vulnerability Assessment"],
+      "min_budget": 1200,
+      "priority_boost": 30
+    }
+  },
+  
+  "spam_filter": {
+    "enabled": true,
+    "log_spam_reasons": true,
+    "save_spam_projects": false
+  },
+  
+  "monitoring": {
+    "check_interval_seconds": 20,
+    "peak_hours_interval": 15,
+    "off_hours_interval": 45,
+    "error_retry_delay_seconds": 300,
+    "max_consecutive_errors": 5,
+    "daily_bid_limit": 50
+  },
+  
+  "performance": {
+    "track_analytics": true,
+    "ab_testing_enabled": true,
+    "analyze_every_n_cycles": 10
+  }
+}

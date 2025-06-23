@@ -19,7 +19,7 @@ from spam_filter import SpamFilter
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class AutoWorkMinimal:
-    def __init__(self):
+     def __init__(self):
         self.token = self.load_token()
         self.user_id = os.environ.get('FREELANCER_USER_ID', '45214417')
         self.api_base = "https://www.freelancer.com/api"
@@ -33,14 +33,13 @@ class AutoWorkMinimal:
         # Initialize Redis connection
         self.redis_client = self.init_redis()
         
-        # Load configurations FIRST (before spam filter)
+        # Load configurations FIRST (before filters)
         self.bid_messages = self.load_bid_messages()
         self.skills_map = self.load_skills_map()
-        self.config = self.load_config()  # This MUST come before spam filter
+        self.config = self.load_config()
         
         # Initialize spam filter AFTER config is loaded
         try:
-            from spam_filter import SpamFilter
             self.spam_filter = SpamFilter()
             self.spam_filter_enabled = self.config.get('spam_filter', {}).get('enabled', True)
             logging.info(f"✓ Spam filter initialized: {'Enabled' if self.spam_filter_enabled else 'Disabled'}")
@@ -48,6 +47,16 @@ class AutoWorkMinimal:
             logging.warning("Spam filter module not found - continuing without spam filtering")
             self.spam_filter = None
             self.spam_filter_enabled = False
+        
+        # Initialize premium filter
+        try:
+            self.premium_filter = PremiumProjectFilter(self.config)
+            self.premium_mode = self.config.get('quality_filters', {}).get('enabled', False)
+            logging.info(f"✓ Premium filter initialized: {'Enabled' if self.premium_mode else 'Disabled'}")
+        except Exception as e:
+            logging.warning(f"Premium filter initialization failed: {e}")
+            self.premium_filter = None
+            self.premium_mode = False
         
         # Enhanced tracking
         self.processed_projects = set()
@@ -61,14 +70,21 @@ class AutoWorkMinimal:
         self.start_time = datetime.now()
         self.today_date = datetime.now().date()
         
-        # Skip tracking - including spam
+        # Premium tracking
+        self.premium_project_bids = 0
+        self.premium_project_wins = 0
+        self.total_quality_score = 0
+        self.premium_bid_count = 0
+        
+        # Skip tracking - including spam and premium
         self.skipped_projects = {
             'too_many_bids': 0,
             'low_budget': 0,
             'bad_client': 0,
             'not_matched': 0,
             'invalid_data': 0,
-            'spam': 0  # Add spam tracking
+            'spam': 0,
+            'low_quality': 0
         }
         
         # Performance tracking
@@ -76,7 +92,8 @@ class AutoWorkMinimal:
             'by_hour': {},
             'by_category': {},
             'by_budget_range': {},
-            'by_message_type': {}
+            'by_message_type': {},
+            'by_quality_score': {}
         }
         
         # A/B testing variants
@@ -84,11 +101,15 @@ class AutoWorkMinimal:
             'professional': 0,
             'friendly': 0,
             'technical': 0,
-            'value_focused': 0
+            'value_focused': 0,
+            'premium': 0
         }
         
-        # Portfolio specializations (customize based on your skills)
+        # Portfolio specializations
         self.specializations = self.load_specializations()
+        
+        # Load premium bid messages if available
+        self.premium_bid_messages = self.load_premium_bid_messages()
         
         # Load state from Redis
         self.load_state_from_redis()
@@ -102,6 +123,21 @@ class AutoWorkMinimal:
         if not self.verify_token_on_startup():
             raise ValueError("Token validation failed - please update your token")
 
+    def load_premium_bid_messages(self) -> Dict[str, Dict[str, List[str]]]:
+        """Load premium bid message templates"""
+        premium_file = "bid_messages_premium.json"
+        
+        if os.path.exists(premium_file):
+            try:
+                with open(premium_file, 'r') as f:
+                    messages = json.load(f)
+                    logging.info("✓ Loaded premium bid messages")
+                    return messages
+            except Exception as e:
+                logging.error(f"Error loading premium bid messages: {e}")
+        
+        return {}
+   
     def init_redis(self):
         """Initialize Redis connection if available"""
         redis_url = os.environ.get('REDIS_URL')
@@ -560,7 +596,7 @@ class AutoWorkMinimal:
         return {'is_good_client': True}
 
     def calculate_bid_priority(self, project: Dict) -> Tuple[int, str]:
-        """Calculate priority score for a project with proper error handling"""
+        """Calculate priority score with premium boost"""
         try:
             # Validate project data first
             if not self.validate_project_data(project):
@@ -568,6 +604,21 @@ class AutoWorkMinimal:
             
             score = 100
             reasons = []
+            
+            # PREMIUM BOOST - Add quality score if premium mode
+            if self.premium_mode and self.premium_filter:
+                is_premium, quality_score, factors = self.premium_filter.is_premium_project(project)
+                if is_premium:
+                    score += quality_score  # Add quality score (0-100)
+                    reasons.append(f"⭐ Premium project (quality: {quality_score})")
+                    
+                    # Additional boost for very high quality
+                    if quality_score >= 80:
+                        score += 50
+                        reasons.append("💎 Exceptional quality")
+                    elif quality_score >= 70:
+                        score += 30
+                        reasons.append("✨ High quality")
             
             # Time since posted
             try:
@@ -615,15 +666,28 @@ class AutoWorkMinimal:
             else:
                 min_budget = 0
             
-            if min_budget >= 500:
-                score += 30
-                reasons.append("💰 High budget")
-            elif min_budget >= 200:
-                score += 15
-                reasons.append("💵 Good budget")
-            elif min_budget < self.config['smart_bidding']['min_profitable_budget']:
-                score -= 40
-                reasons.append("💸 Low budget")
+            # Premium budget tiers
+            if self.premium_mode:
+                if min_budget >= 2000:
+                    score += 40
+                    reasons.append("💰 Enterprise budget")
+                elif min_budget >= 1000:
+                    score += 30
+                    reasons.append("💵 Premium budget")
+                elif min_budget >= 500:
+                    score += 20
+                    reasons.append("💴 Good budget")
+            else:
+                # Standard budget scoring
+                if min_budget >= 500:
+                    score += 30
+                    reasons.append("💰 High budget")
+                elif min_budget >= 200:
+                    score += 15
+                    reasons.append("💵 Good budget")
+                elif min_budget < self.config['smart_bidding']['min_profitable_budget']:
+                    score -= 40
+                    reasons.append("💸 Low budget")
             
             # Skills match
             if self.config['filtering']['portfolio_matching']:
@@ -645,6 +709,12 @@ class AutoWorkMinimal:
             if self.is_elite_project(project):
                 score += 10
                 reasons.append("🌟 Elite project")
+            
+            # Long-term project bonus
+            description = project.get('description', '').lower()
+            if any(term in description for term in ['long term', 'ongoing', 'full time', 'permanent']):
+                score += 30
+                reasons.append("📅 Long-term opportunity")
             
             return score, ", ".join(reasons)
             
@@ -752,53 +822,86 @@ class AutoWorkMinimal:
             return self.config['bidding']['default_bid_regular']
 
     def select_bid_message(self, project: Dict, is_elite: bool = False) -> str:
-        """Select and customize bid message using A/B testing"""
+        """Select bid message with premium template support"""
         try:
+            # Check if this is a premium project
+            if self.premium_mode and self.premium_filter:
+                is_premium, quality_score, factors = self.premium_filter.is_premium_project(project)
+                
+                # Use premium template for high-quality projects
+                if is_premium and quality_score >= 70:
+                    # Get premium template
+                    user_info = {
+                        'name': os.environ.get('FREELANCER_NAME', 'Professional Developer'),
+                        'experience_years': os.environ.get('EXPERIENCE_YEARS', '5'),
+                        'portfolio_link': os.environ.get('PORTFOLIO_URL', 'portfolio.example.com'),
+                        'github_link': os.environ.get('GITHUB_URL', 'github.com/username')
+                    }
+                    
+                    premium_message = self.premium_filter.get_premium_bid_template(project, user_info)
+                    
+                    # Track premium message usage
+                    self.message_variants['premium'] += 1
+                    if self.redis_client:
+                        self.redis_client.hincrby('message_variants', 'premium', 1)
+                    
+                    logging.info("   📝 Using premium bid template")
+                    return premium_message
+            
+            # Check for category-specific premium messages
+            if self.premium_bid_messages:
+                # Determine project category
+                category = self._determine_project_category(project)
+                if category in self.premium_bid_messages:
+                    messages = []
+                    for subcategory in self.premium_bid_messages[category].values():
+                        messages.extend(subcategory)
+                    
+                    if messages:
+                        import random
+                        message_template = random.choice(messages)
+                        
+                        # Customize the message
+                        project_skills = self._get_project_skills(project)
+                        skills_text = ", ".join(project_skills[:2]) if project_skills else "relevant technologies"
+                        delivery_days = self._get_delivery_days(project)
+                        project_title = project.get('title', 'your project')[:50]
+                        
+                        message = message_template.format(
+                            project_title=project_title,
+                            skills=skills_text,
+                            days=delivery_days
+                        )
+                        
+                        logging.info(f"   📝 Using {category} premium template")
+                        return message
+            
+            # Fall back to standard message selection
             if not self.config['performance']['ab_testing_enabled']:
-                # Use first professional message
                 messages = self.bid_messages.get('professional', ["Default message"])
                 message_template = messages[0] if messages else "Default message"
             else:
                 # A/B testing logic
                 variant_names = list(self.message_variants.keys())
+                if 'premium' in variant_names:
+                    variant_names.remove('premium')  # Don't use premium in regular rotation
                 
-                # Use round-robin for even distribution
-                total_uses = sum(self.message_variants.values())
+                total_uses = sum(self.message_variants[v] for v in variant_names)
                 variant_index = total_uses % len(variant_names)
                 selected_variant = variant_names[variant_index]
                 
-                # Track usage
                 self.message_variants[selected_variant] += 1
                 
-                # Get message template
                 messages = self.bid_messages.get(selected_variant, self.bid_messages.get('professional', ["Default"]))
                 message_template = messages[0] if messages else "Default message"
                 
-                # Track in Redis
                 if self.redis_client:
                     self.redis_client.hincrby('message_variants', selected_variant, 1)
             
             # Customize message
-            project_skills = []
-            jobs = project.get('jobs', [])
-            if isinstance(jobs, list):
-                for job in jobs[:3]:  # First 3 skills
-                    if isinstance(job, dict):
-                        skill_id = str(job.get('id', ''))
-                        skill_name = self.skills_map.get(skill_id, job.get('name', ''))
-                        if skill_name:
-                            project_skills.append(skill_name)
-            
+            project_skills = self._get_project_skills(project)
             skills_text = ", ".join(project_skills[:2]) if project_skills else "relevant technologies"
-            
-            # Determine delivery days
-            upgrades = project.get('upgrades', {})
-            if isinstance(upgrades, dict) and upgrades.get('urgent', False):
-                delivery_days = self.config['bidding']['express_delivery_days']
-            else:
-                delivery_days = self.config['bidding']['delivery_days']
-            
-            # Format message
+            delivery_days = self._get_delivery_days(project)
             project_title = project.get('title', 'your project')[:50]
             
             message = message_template.format(
@@ -808,15 +911,37 @@ class AutoWorkMinimal:
             )
             
             # Add NDA/IP note if needed
-            if is_elite and isinstance(upgrades, dict):
-                if upgrades.get('NDA', False) or upgrades.get('ip_contract', False):
-                    message += "\n\nI understand this project requires confidentiality agreements and I'm ready to sign any necessary NDA/IP documents."
+            if is_elite:
+                upgrades = project.get('upgrades', {})
+                if isinstance(upgrades, dict):
+                    if upgrades.get('NDA', False) or upgrades.get('ip_contract', False):
+                        message += "\n\nI understand this project requires confidentiality agreements and I'm ready to sign any necessary NDA/IP documents."
             
             return message
             
         except Exception as e:
             logging.error(f"Error selecting bid message: {e}")
             return "I am interested in your project and have the skills needed to complete it successfully. I can deliver within the specified timeframe. Let's discuss the details."
+    
+     def _get_project_skills(self, project: Dict) -> List[str]:
+        """Extract project skills"""
+        project_skills = []
+        jobs = project.get('jobs', [])
+        if isinstance(jobs, list):
+            for job in jobs[:3]:
+                if isinstance(job, dict):
+                    skill_id = str(job.get('id', ''))
+                    skill_name = self.skills_map.get(skill_id, job.get('name', ''))
+                    if skill_name:
+                        project_skills.append(skill_name)
+        return project_skills
+
+    def _get_delivery_days(self, project: Dict) -> int:
+        """Determine delivery days based on project"""
+        upgrades = project.get('upgrades', {})
+        if isinstance(upgrades, dict) and upgrades.get('urgent', False):
+            return self.config['bidding']['express_delivery_days']
+        return self.config['bidding']['delivery_days']
 
     def is_elite_project(self, project: Dict) -> bool:
         """Check if a project is an elite project"""
@@ -895,7 +1020,7 @@ class AutoWorkMinimal:
             }
 
     def should_bid_on_project(self, project: Dict) -> Tuple[bool, str]:
-        """Determine if should bid on a project with reason (includes spam check)"""
+        """Determine if should bid on a project with spam and quality checks"""
         try:
             project_id = project.get('id')
             
@@ -910,8 +1035,20 @@ class AutoWorkMinimal:
                     self.skipped_projects['spam'] += 1
                     logging.warning(f"🚫 SPAM DETECTED: {project.get('title', '')[:50]}...")
                     logging.warning(f"   Reasons: {', '.join(spam_reasons[:3])}")
-                    self.processed_projects.add(project_id)  # Mark as processed to avoid rechecking
+                    self.processed_projects.add(project_id)
                     return False, f"Spam: {spam_reasons[0]}"
+            
+            # QUALITY CHECK - For premium mode
+            if self.premium_mode and self.premium_filter:
+                is_premium, quality_score, factors = self.premium_filter.is_premium_project(project)
+                min_quality_score = self.config.get('quality_filters', {}).get('min_quality_score', 50)
+                
+                if quality_score < min_quality_score:
+                    self.skipped_projects['low_quality'] += 1
+                    logging.info(f"📊 Low quality project (score: {quality_score}): {project.get('title', '')[:50]}...")
+                    return False, f"Low quality score ({quality_score})"
+                else:
+                    logging.info(f"⭐ Quality project (score: {quality_score}): {project.get('title', '')[:50]}...")
             
             # Check bid count
             bid_stats = project.get('bid_stats', {})
@@ -1027,8 +1164,8 @@ class AutoWorkMinimal:
             logging.error(f"   Error checking/signing IP agreement: {e}")
             return True
 
-    def track_bid_performance(self, project: Dict, bid_amount: float, priority_score: int, variant_used: str = None):
-        """Track bid performance for analytics"""
+   def track_bid_performance(self, project: Dict, bid_amount: float, priority_score: int, variant_used: str = None):
+        """Track bid performance including quality metrics"""
         if not self.config['performance']['track_analytics']:
             return
         
@@ -1068,6 +1205,27 @@ class AutoWorkMinimal:
                 if variant_used not in self.performance_data['by_message_type']:
                     self.performance_data['by_message_type'][variant_used] = {'bids': 0, 'wins': 0}
                 self.performance_data['by_message_type'][variant_used]['bids'] += 1
+            
+            # Track by quality score (for premium mode)
+            if self.premium_mode and self.premium_filter:
+                is_premium, quality_score, _ = self.premium_filter.is_premium_project(project)
+                if is_premium:
+                    self.premium_bid_count += 1
+                    self.total_quality_score += quality_score
+                    
+                    # Track by quality tier
+                    if quality_score >= 80:
+                        tier = 'exceptional'
+                    elif quality_score >= 70:
+                        tier = 'high'
+                    elif quality_score >= 60:
+                        tier = 'good'
+                    else:
+                        tier = 'moderate'
+                    
+                    if tier not in self.performance_data['by_quality_score']:
+                        self.performance_data['by_quality_score'][tier] = {'bids': 0, 'wins': 0}
+                    self.performance_data['by_quality_score'][tier]['bids'] += 1
                 
         except Exception as e:
             logging.debug(f"Error tracking performance: {e}")
@@ -1365,7 +1523,7 @@ class AutoWorkMinimal:
             return []
 
     def analyze_performance(self):
-        """Analyze and log performance metrics"""
+        """Analyze and log performance metrics including premium stats"""
         if not self.config['performance']['track_analytics'] or self.bid_count == 0:
             return
         
@@ -1383,6 +1541,22 @@ class AutoWorkMinimal:
         logging.info(f"  Elite Projects: {self.elite_bid_count} ({elite_percentage:.1f}%)")
         logging.info(f"  Bids Today: {self.bids_today}")
         
+        # Premium project statistics
+        if self.premium_mode and self.premium_bid_count > 0:
+            avg_quality = self.total_quality_score / self.premium_bid_count
+            premium_win_rate = (self.premium_project_wins / self.premium_bid_count * 100) if self.premium_bid_count > 0 else 0
+            
+            logging.info(f"\n⭐ Premium Project Stats:")
+            logging.info(f"  Premium bids placed: {self.premium_bid_count}")
+            logging.info(f"  Average quality score: {avg_quality:.1f}")
+            logging.info(f"  Premium win rate: {premium_win_rate:.1f}%")
+            
+            # Quality tier breakdown
+            if self.performance_data.get('by_quality_score'):
+                logging.info(f"\n💎 Bids by Quality Tier:")
+                for tier, data in sorted(self.performance_data['by_quality_score'].items()):
+                    logging.info(f"  {tier.title()}: {data['bids']} bids")
+        
         # Skip reasons including spam
         total_skipped = sum(self.skipped_projects.values())
         if total_skipped > 0:
@@ -1392,7 +1566,7 @@ class AutoWorkMinimal:
                 logging.info(f"  {reason.replace('_', ' ').title()}: {count} ({percentage:.1f}%)")
         
         # Spam filter statistics
-        if self.spam_filter_enabled:
+        if self.spam_filter_enabled and self.spam_filter:
             spam_stats = self.spam_filter.get_stats()
             if spam_stats['total_checked'] > 0:
                 logging.info(f"\n🚫 Spam Filter Stats:")
@@ -1428,7 +1602,7 @@ class AutoWorkMinimal:
         # Message variant performance
         if self.config['performance']['ab_testing_enabled'] and self.message_variants:
             logging.info("\n💬 Message Variant Usage:")
-            for variant, count in self.message_variants.items():
+            for variant, count in sorted(self.message_variants.items(), key=lambda x: x[1], reverse=True):
                 total_variants = sum(self.message_variants.values())
                 percentage = (count / total_variants * 100) if total_variants > 0 else 0
                 logging.info(f"  {variant}: {count} ({percentage:.1f}%)")
