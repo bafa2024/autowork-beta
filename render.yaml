@@ -3,7 +3,10 @@ services:
   - type: worker
     name: autowork-bot
     env: python
-    buildCommand: "pip install -r requirements.txt"
+    runtime: python-3.11.7
+    buildCommand: |
+      pip install --upgrade pip
+      pip install -r requirements.txt
     startCommand: "python cron_monitor.py"
     envVars:
       - key: FREELANCER_OAUTH_TOKEN
@@ -25,7 +28,10 @@ services:
   - type: web
     name: autowork-dashboard
     env: python
-    buildCommand: "pip install -r requirements.txt"
+    runtime: python-3.11.7
+    buildCommand: |
+      pip install --upgrade pip
+      pip install -r requirements.txt
     startCommand: "python dashboard.py"
     envVars:
       - key: FREELANCER_OAUTH_TOKEN
