@@ -822,7 +822,8 @@ class AutoWorkMinimal:
                 # Slightly below average to be competitive
                 competitive_bid = avg_bid * self.config['smart_bidding']['undercut_percentage']
                 # But not below profitable minimum
-                return max(competitive_bid, min_budget * 1.1)
+                #return max(competitive_bid, min_budget * 1.1)
+                return min_budget
             
             # If many bids, need to be more aggressive
             elif bid_count > 10 and avg_bid > 0:
