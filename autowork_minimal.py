@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Enhanced AutoWork Bot with Smart Features for Higher Win Rate
-Complete version with all bidding functionality
+Modified for MINIMUM BUDGET BIDDING and 3-DAY DELIVERY
 """
 
 import os
@@ -138,10 +138,9 @@ class AutoWorkMinimal:
         # Load state from Redis
         self.load_state_from_redis()
         
-        logging.info("✓ Enhanced Bot initialized with smart features")
-        logging.info(f"✓ Early bird window: {self.config['smart_bidding']['early_bird_minutes']} minutes")
-        logging.info(f"✓ Max bids threshold: {self.config['smart_bidding']['max_existing_bids']}")
-        logging.info(f"✓ Min budget: ${self.config['smart_bidding']['min_profitable_budget']}")
+        logging.info("✓ Enhanced Bot initialized with MINIMUM BUDGET BIDDING")
+        logging.info(f"✓ Delivery time: 3 DAYS for all projects")
+        logging.info(f"✓ Bidding strategy: ALWAYS MINIMUM BUDGET")
         
         # Verify token on startup
         if not self.verify_token_on_startup():
@@ -305,32 +304,32 @@ class AutoWorkMinimal:
             except Exception as e:
                 logging.error(f"Error loading config: {e}")
         
-        # Default configuration
+        # Default configuration with MINIMUM BUDGET settings
         return {
             "bidding": {
-                "delivery_days": 4,
-                "express_delivery_days": 2,
+                "delivery_days": 3,
+                "express_delivery_days": 3,
                 "min_bid_delay_seconds": 5,
-                "bid_multiplier_regular": 1.15,
-                "bid_multiplier_elite": 1.2,
+                "bid_multiplier_regular": 1.0,
+                "bid_multiplier_elite": 1.0,
                 "default_bid_regular": 100,
                 "default_bid_elite": 150
             },
             "smart_bidding": {
                 "enabled": True,
-                "max_existing_bids": 15,
-                "early_bird_minutes": 30,
-                "instant_bid_threshold": 5,
-                "competitive_pricing": True,
-                "undercut_percentage": 0.95,
-                "min_profitable_budget": 50
+                "max_existing_bids": 500,
+                "early_bird_minutes": 60,
+                "instant_bid_threshold": 10,
+                "competitive_pricing": False,
+                "undercut_percentage": 1.0,
+                "min_profitable_budget": 30
             },
             "client_filtering": {
-                "enabled": True,
-                "min_client_rating": 4.0,
-                "min_completion_rate": 0.8,
-                "min_projects_posted": 1,
-                "check_payment_verified": True
+                "enabled": False,
+                "min_client_rating": 3.0,
+                "min_completion_rate": 0.5,
+                "min_projects_posted": 0,
+                "check_payment_verified": False
             },
             "elite_projects": {
                 "auto_sign_nda": True,
@@ -339,9 +338,9 @@ class AutoWorkMinimal:
             },
             "filtering": {
                 "max_projects_per_cycle": 50,
-                "skip_projects_with_bids_above": 25,
-                "portfolio_matching": True,
-                "min_skill_match_score": 0.3
+                "skip_projects_with_bids_above": 100,
+                "portfolio_matching": False,
+                "min_skill_match_score": 0.1
             },
             "monitoring": {
                 "check_interval_seconds": 30,
@@ -471,7 +470,7 @@ class AutoWorkMinimal:
                 self.redis_client.set('skipped_projects', json.dumps(self.skipped_projects))
                 
                 # Save status
-                self.redis_client.set('bot_status', 'Running - Enhanced Mode')
+                self.redis_client.set('bot_status', 'Running - Minimum Budget Mode')
                 self.redis_client.set('last_update', datetime.now().isoformat())
                 
                 # Calculate and save metrics
@@ -582,19 +581,19 @@ class AutoWorkMinimal:
             except:
                 pass
         
-        # Default categorized messages
+        # Default categorized messages with 3-day delivery
         return {
             "professional": [
-                "Dear Client,\n\nI have carefully reviewed your project requirements for {project_title}. With my expertise in {skills}, I can deliver high-quality results within {days} days.\n\nI have successfully completed similar projects with excellent client feedback. I would be happy to discuss your specific needs in detail.\n\nBest regards."
+                "Dear Client,\n\nI have carefully reviewed your project requirements for {project_title}. With my expertise in {skills}, I can deliver high-quality results within 3 days.\n\nI have successfully completed similar projects with excellent client feedback. I would be happy to discuss your specific needs in detail.\n\nBest regards."
             ],
             "friendly": [
-                "Hi there! 👋\n\nYour project for {project_title} caught my eye - it's exactly the kind of work I love doing! I've got solid experience with {skills} and can start right away.\n\nI'll make sure you get exactly what you need within {days} days. Let's chat about how I can help make your project a success! 😊"
+                "Hi there! 👋\n\nYour project for {project_title} caught my eye - it's exactly the kind of work I love doing! I've got solid experience with {skills} and can start right away.\n\nI'll make sure you get exactly what you need within 3 days. Let's chat about how I can help make your project a success! 😊"
             ],
             "technical": [
-                "Hello,\n\nI've analyzed your requirements for {project_title}. Technical approach:\n- I'll use {skills} to implement a robust solution\n- Deliverables will include clean code, documentation, and testing\n- Timeline: {days} days with daily progress updates\n\nI'm ready to start immediately."
+                "Hello,\n\nI've analyzed your requirements for {project_title}. Technical approach:\n- I'll use {skills} to implement a robust solution\n- Deliverables will include clean code, documentation, and testing\n- Timeline: 3 days with daily progress updates\n\nI'm ready to start immediately."
             ],
             "value_focused": [
-                "Hi! I see you need help with {project_title}.\n\nHere's what you'll get:\n✓ Expert {skills} implementation\n✓ Delivery in just {days} days\n✓ Unlimited revisions until you're 100% satisfied\n✓ Post-delivery support\n\nMy goal is to exceed your expectations while staying within budget. Let's discuss!"
+                "Hi! I see you need help with {project_title}.\n\nHere's what you'll get:\n✓ Expert {skills} implementation\n✓ Delivery in just 3 days\n✓ Unlimited revisions until you're 100% satisfied\n✓ Post-delivery support\n\nMy goal is to exceed your expectations while staying within budget. Let's discuss!"
             ]
         }
 
@@ -792,69 +791,36 @@ class AutoWorkMinimal:
             return 0.0
 
     def calculate_competitive_bid(self, project: Dict, is_elite: bool = False) -> float:
-        """Calculate competitive bid amount using market intelligence"""
+        """Calculate bid at minimum budget (modified for minimum bidding strategy)"""
         try:
-            if not self.config['smart_bidding']['competitive_pricing']:
-                # Use simple calculation
-                return self.calculate_bid_amount(project.get('budget', {}), is_elite)
-            
             budget = project.get('budget', {})
             if not isinstance(budget, dict):
                 budget = {}
-                
+            
             min_budget = float(budget.get('minimum', 0))
-            max_budget = float(budget.get('maximum', min_budget * 2))
             
-            bid_stats = project.get('bid_stats', {})
-            if not isinstance(bid_stats, dict):
-                bid_stats = {}
-                
-            avg_bid = float(bid_stats.get('bid_avg', 0))
-            bid_count = bid_stats.get('bid_count', 0)
-            
-            # If no bids yet, use strategic positioning
-            if bid_count == 0:
-                # First bid: 30% above minimum for quality signal
-                return min(min_budget * 1.3, max_budget)
-            
-            # If few bids, position competitively
-            elif bid_count < 5 and avg_bid > 0:
-                # Slightly below average to be competitive
-                competitive_bid = avg_bid * self.config['smart_bidding']['undercut_percentage']
-                # But not below profitable minimum
-                #return max(competitive_bid, min_budget * 1.1)
+            # MODIFICATION: Always bid at minimum budget
+            # This is the key change - we simply return the minimum budget
+            if min_budget > 0:
+                logging.info(f"   💰 Bidding at minimum: ${min_budget}")
                 return min_budget
             
-            # If many bids, need to be more aggressive
-            elif bid_count > 10 and avg_bid > 0:
-                # More aggressive undercut
-                aggressive_bid = avg_bid * 0.85
-                # But still profitable
-                return max(aggressive_bid, min_budget * 1.05)
+            # Fallback to default if no minimum specified
+            return self.config['bidding']['default_bid_regular']
             
-            # Default: standard multiplier
-            else:
-                multiplier = self.config['bidding']['bid_multiplier_elite'] if is_elite else self.config['bidding']['bid_multiplier_regular']
-                return min_budget * multiplier
-                
         except Exception as e:
-            logging.error(f"Error calculating competitive bid: {e}")
+            logging.error(f"Error calculating bid: {e}")
             return self.config['bidding']['default_bid_regular']
 
     def calculate_bid_amount(self, budget: Dict, is_elite: bool = False) -> float:
-        """Simple bid calculation for fallback"""
+        """Simple bid calculation - always use minimum"""
         try:
             if isinstance(budget, dict) and budget.get("minimum"):
                 min_amount = float(budget["minimum"])
-                max_amount = float(budget.get("maximum", min_amount * 1.5))
-                
-                if is_elite:
-                    bid_amount = min_amount * self.config['bidding']['bid_multiplier_elite']
-                else:
-                    bid_amount = min_amount * self.config['bidding']['bid_multiplier_regular']
-                
-                return min(bid_amount, max_amount)
+                # MODIFICATION: Always return minimum amount
+                return min_amount
             
+            # Fallback to configured default
             return self.config['bidding']['default_bid_elite'] if is_elite else self.config['bidding']['default_bid_regular']
             
         except Exception as e:
@@ -904,7 +870,7 @@ class AutoWorkMinimal:
                         # Customize the message
                         project_skills = self._get_project_skills(project)
                         skills_text = ", ".join(project_skills[:2]) if project_skills else "relevant technologies"
-                        delivery_days = self._get_delivery_days(project)
+                        delivery_days = 3  # ALWAYS 3 DAYS
                         project_title = project.get('title', 'your project')[:50]
                         
                         message = message_template.format(
@@ -941,7 +907,7 @@ class AutoWorkMinimal:
             # Customize message
             project_skills = self._get_project_skills(project)
             skills_text = ", ".join(project_skills[:2]) if project_skills else "relevant technologies"
-            delivery_days = self._get_delivery_days(project)
+            delivery_days = 3  # ALWAYS 3 DAYS
             project_title = project.get('title', 'your project')[:50]
             
             message = message_template.format(
@@ -961,7 +927,7 @@ class AutoWorkMinimal:
             
         except Exception as e:
             logging.error(f"Error selecting bid message: {e}")
-            return "I am interested in your project and have the skills needed to complete it successfully. I can deliver within the specified timeframe. Let's discuss the details."
+            return "I am interested in your project and have the skills needed to complete it successfully. I can deliver within 3 days. Let's discuss the details."
     
     def _determine_project_category(self, project: Dict) -> str:
         """Determine project category based on skills and title"""
@@ -995,11 +961,9 @@ class AutoWorkMinimal:
         return project_skills
 
     def _get_delivery_days(self, project: Dict) -> int:
-        """Determine delivery days based on project"""
-        upgrades = project.get('upgrades', {})
-        if isinstance(upgrades, dict) and upgrades.get('urgent', False):
-            return self.config['bidding']['express_delivery_days']
-        return self.config['bidding']['delivery_days']
+        """Always return 3 days delivery"""
+        # MODIFICATION: Always 3 days regardless of project type
+        return 3
 
     def is_elite_project(self, project: Dict) -> bool:
         """Check if a project is an elite project"""
@@ -1317,7 +1281,7 @@ class AutoWorkMinimal:
         
         # Update status
         if self.redis_client:
-            self.redis_client.set('bot_status', 'Running - Enhanced Mode')
+            self.redis_client.set('bot_status', 'Running - Minimum Budget Mode')
             self.redis_client.delete('rate_limit_wait_until')
 
     def place_bid(self, project: Dict) -> bool:
@@ -1363,14 +1327,11 @@ class AutoWorkMinimal:
             if current_time - self.last_bid_time < min_delay:
                 time.sleep(min_delay - (current_time - self.last_bid_time))
             
-            # Calculate competitive bid
+            # Calculate competitive bid - ALWAYS MINIMUM
             bid_amount = self.calculate_competitive_bid(project, is_elite)
             
-            # Determine delivery days
-            if details.get('urgent', False):
-                delivery_days = self.config['bidding']['express_delivery_days']
-            else:
-                delivery_days = self.config['bidding']['delivery_days']
+            # ALWAYS 3 DAYS DELIVERY
+            delivery_days = 3
             
             # Generate optimized message
             bid_message = self.select_bid_message(project, is_elite)
@@ -1409,7 +1370,7 @@ class AutoWorkMinimal:
             else:
                 logging.info(f"   💰 Budget: {currency_code} {budget_min} - {budget_max}")
                 
-            logging.info(f"   💰 Bid: ${bid_amount:.2f} with {delivery_days}-day delivery")
+            logging.info(f"   💰 Bid: ${bid_amount:.2f} with {delivery_days}-day delivery (MINIMUM BID)")
             logging.info(f"   📝 Message variant: {variant_used}")
             
             if is_elite:
@@ -1475,7 +1436,8 @@ class AutoWorkMinimal:
                         "status": "success",
                         "is_elite": is_elite,
                         "priority_score": priority_score,
-                        "message_variant": variant_used
+                        "message_variant": variant_used,
+                        "bid_strategy": "minimum_budget"
                     }
                     self.redis_client.set(bid_key, json.dumps(bid_info))
                     self.redis_client.expire(bid_key, 86400)
@@ -1691,7 +1653,7 @@ class AutoWorkMinimal:
             return
         
         logging.info("\n" + "="*60)
-        logging.info("📊 PERFORMANCE ANALYTICS")
+        logging.info("📊 PERFORMANCE ANALYTICS - MINIMUM BUDGET STRATEGY")
         logging.info("="*60)
         
         # Overall metrics
@@ -1703,6 +1665,8 @@ class AutoWorkMinimal:
         logging.info(f"  Projects Won: {self.wins_count} ({win_rate:.1f}% win rate)")
         logging.info(f"  Elite Projects: {self.elite_bid_count} ({elite_percentage:.1f}%)")
         logging.info(f"  Bids Today: {self.bids_today}")
+        logging.info(f"  Bidding Strategy: MINIMUM BUDGET (100% at minimum)")
+        logging.info(f"  Delivery Promise: 3 DAYS (all projects)")
         
         # Premium project statistics
         if self.premium_mode and self.premium_bid_count > 0:
@@ -1782,8 +1746,10 @@ class AutoWorkMinimal:
 
     def realtime_monitor_with_bidding(self):
         """Enhanced monitoring loop with better rate limit handling"""
-        logging.info("🚀 Starting Enhanced AutoWork Bot...")
+        logging.info("🚀 Starting Enhanced AutoWork Bot - MINIMUM BUDGET MODE...")
         logging.info(f"User ID: {self.user_id}")
+        logging.info(f"Bidding Strategy: ALWAYS MINIMUM BUDGET")
+        logging.info(f"Delivery Time: ALWAYS 3 DAYS")
         logging.info(f"Smart Features: {'Enabled' if self.config['smart_bidding']['enabled'] else 'Disabled'}")
         logging.info(f"Client Filtering: {'Enabled' if self.config['client_filtering']['enabled'] else 'Disabled'}")
         logging.info(f"Portfolio Matching: {'Enabled' if self.config['filtering']['portfolio_matching'] else 'Disabled'}")
@@ -1797,7 +1763,7 @@ class AutoWorkMinimal:
         
         # Update Redis status
         if self.redis_client:
-            self.redis_client.set('bot_status', 'Running - Enhanced Mode')
+            self.redis_client.set('bot_status', 'Running - Minimum Budget Mode')
             self.redis_client.set('bot_start_time', self.start_time.isoformat())
         
         while True:
@@ -1880,6 +1846,7 @@ class AutoWorkMinimal:
                         logging.info(f"   Projects analyzed: {projects_analyzed}")
                         logging.info(f"   Bids placed: {new_bids}")
                         logging.info(f"   Projects skipped: {projects_analyzed - new_bids}")
+                        logging.info(f"   Strategy: MINIMUM BUDGET (3-day delivery)")
                     
                     if not rate_limited:
                         error_count = 0  # Reset on success
@@ -1923,6 +1890,7 @@ class AutoWorkMinimal:
                     skip_rate = (sum(self.skipped_projects.values()) / (self.bid_count + sum(self.skipped_projects.values())) * 100)
                     
                     logging.info(f"\n📈 Overall Stats: {self.bid_count} total bids | {win_rate:.1f}% win rate | {elite_rate:.1f}% elite | {skip_rate:.1f}% filtered")
+                    logging.info(f"   💰 All bids placed at MINIMUM BUDGET with 3-DAY DELIVERY")
                 
                 logging.info(f"💤 Waiting {wait_time} seconds until next cycle...")
                 time.sleep(wait_time)
