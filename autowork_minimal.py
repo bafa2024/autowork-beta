@@ -322,7 +322,7 @@ class AutoWorkMinimal:
                 "instant_bid_threshold": 10,
                 "competitive_pricing": False,
                 "undercut_percentage": 1.0,
-                "min_profitable_budget": 30
+                "min_profitable_budget": 250
             },
             "client_filtering": {
                 "enabled": False,
@@ -1041,6 +1041,42 @@ class AutoWorkMinimal:
                 'bid_count': 0
             }
 
+    def get_minimum_budget_for_currency(self, currency_code: str) -> float:
+        """Get minimum budget threshold for specific currency"""
+        currency_code = currency_code.upper()
+        
+        # Currency-specific minimum budgets
+        currency_minimums = {
+            'USD': 250.0,
+            'CAD': 250.0,
+            'EUR': 230.0,  # Approx 250 USD equivalent
+            'GBP': 200.0,  # Approx 250 USD equivalent
+            'AUD': 380.0,  # Approx 250 USD equivalent
+            'INR': 20000.0,  # 250 CAD converted to INR (approx 1 CAD = 80 INR)
+            'PKR': 69500.0,  # 250 CAD converted to PKR (approx 1 CAD = 278 PKR)
+            'PHP': 14000.0,  # 250 CAD converted to PHP (approx 1 CAD = 56 PHP)
+            'BRL': 1250.0,   # 250 CAD converted to BRL (approx 1 CAD = 5 BRL)
+            'MXN': 4250.0,   # 250 CAD converted to MXN (approx 1 CAD = 17 MXN)
+            'JPY': 37500.0,  # 250 CAD converted to JPY (approx 1 CAD = 150 JPY)
+            'CNY': 1800.0,   # 250 CAD converted to CNY (approx 1 CAD = 7.2 CNY)
+            'ZAR': 4625.0,   # 250 CAD converted to ZAR (approx 1 CAD = 18.5 ZAR)
+            'NGN': 112500.0, # 250 CAD converted to NGN (approx 1 CAD = 450 NGN)
+            'EGP': 7750.0,   # 250 CAD converted to EGP (approx 1 CAD = 31 EGP)
+            'AED': 917.5,    # 250 CAD converted to AED (approx 1 CAD = 3.67 AED)
+            'SAR': 937.5,    # 250 CAD converted to SAR (approx 1 CAD = 3.75 SAR)
+        }
+        
+        # Return currency-specific minimum or default to USD equivalent
+        if currency_code in currency_minimums:
+            return currency_minimums[currency_code]
+        
+        # For unknown currencies, convert 250 USD to that currency
+        if self.currency_converter:
+            return self.currency_converter.get_min_budget_for_currency(250.0, currency_code)
+        
+        # Fallback to USD equivalent
+        return 250.0
+
     def should_bid_on_project(self, project: Dict) -> Tuple[bool, str]:
         """Determine if should bid on a project with spam and quality checks"""
         try:
@@ -1083,26 +1119,35 @@ class AutoWorkMinimal:
                 self.skipped_projects['too_many_bids'] += 1
                 return False, f"Too many bids ({bid_count})"
             
-            # Check budget
+            # Check budget with currency-specific minimums
             budget = project.get('budget', {})
             if isinstance(budget, dict):
                 min_budget = float(budget.get('minimum', 0))
                 currency_code = project.get('currency', {}).get('code', 'USD')
                 
-                # Convert to USD for comparison
-                if self.currency_converter:
-                    min_budget_usd = self.currency_converter.to_usd(min_budget, currency_code)
-                else:
-                    min_budget_usd = min_budget
+                # Get currency-specific minimum budget
+                min_required = self.get_minimum_budget_for_currency(currency_code)
+                
+                # Compare in the same currency
+                if min_budget < min_required:
+                    self.skipped_projects['low_budget'] += 1
+                    
+                    # Also show USD equivalent for reference
+                    if self.currency_converter and currency_code != 'USD':
+                        min_budget_usd = self.currency_converter.to_usd(min_budget, currency_code)
+                        min_required_usd = self.currency_converter.to_usd(min_required, currency_code)
+                        budget_info = f"{currency_code} {min_budget:.2f} (${min_budget_usd:.2f} USD) < {currency_code} {min_required:.2f} (${min_required_usd:.2f} USD)"
+                    else:
+                        budget_info = f"{currency_code} {min_budget:.2f} < {currency_code} {min_required:.2f}"
+                    
+                    return False, f"Budget too low ({budget_info})"
             else:
                 min_budget = 0
-                min_budget_usd = 0
                 currency_code = 'USD'
                 
-            if min_budget_usd < self.config['smart_bidding']['min_profitable_budget']:
-                self.skipped_projects['low_budget'] += 1
-                budget_info = f"{currency_code} {min_budget:.2f} = ${min_budget_usd:.2f} USD"
-                return False, f"Budget too low ({budget_info})"
+                if min_budget < 250:  # Default USD minimum
+                    self.skipped_projects['low_budget'] += 1
+                    return False, f"Budget too low (USD {min_budget:.2f} < USD 250.00)"
             
             # Check client (optional)
             if self.config['client_filtering']['enabled']:
