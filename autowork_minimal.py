@@ -43,7 +43,7 @@ class AutoWorkMinimal:
         # Initialize spam filter AFTER config is loaded
         try:
             self.spam_filter = SpamFilter()
-            self.spam_filter_enabled = self.config.get('spam_filter', {}).get('enabled', True)
+            self.spam_filter_enabled = False  # Temporarily disabled to ensure bidding
             logging.info(f"✓ Spam filter initialized: {'Enabled' if self.spam_filter_enabled else 'Disabled'}")
         except ImportError:
             logging.warning("Spam filter module not found - continuing without spam filtering")
@@ -62,7 +62,7 @@ class AutoWorkMinimal:
         try:
             from premium_filter import PremiumProjectFilter
             self.premium_filter = PremiumProjectFilter(self.config)
-            self.premium_mode = self.config.get('quality_filters', {}).get('enabled', False)
+            self.premium_mode = False  # Temporarily disabled to ensure bidding
             logging.info(f"✓ Premium filter initialized: {'Enabled' if self.premium_mode else 'Disabled'}")
         except Exception as e:
             logging.warning(f"Premium filter initialization failed: {e}")
@@ -320,29 +320,29 @@ class AutoWorkMinimal:
             },
             "smart_bidding": {
                 "enabled": True,
-                "max_existing_bids": 500,
+                "max_existing_bids": 1000,  # Increased from 500
                 "early_bird_minutes": 60,
                 "instant_bid_threshold": 10,
                 "competitive_pricing": False,
                 "undercut_percentage": 1.0,
-                "min_profitable_budget": 250
+                "min_profitable_budget": 50  # Reduced from 250
             },
             "client_filtering": {
                 "enabled": True,
-                "min_client_rating": 3.0,
-                "min_completion_rate": 0.5,
+                "min_client_rating": 1.0,  # Reduced from 3.0
+                "min_completion_rate": 0.3,  # Reduced from 0.5
                 "min_projects_posted": 0,
-                "check_payment_verified": True,
-                "require_payment_method": True,
+                "check_payment_verified": False,  # Disabled
+                "require_payment_method": False,  # Disabled
                 "require_deposit": False,
-                "require_identity_verified": True,
-                "skip_phone_email_only": True
+                "require_identity_verified": False,  # Disabled
+                "skip_phone_email_only": False  # Disabled
             },
             "currency_filtering": {
                 "enabled": True,
                 "inr_pkr_strict_filtering": True,
-                "inr_minimum_budget": 16000.0,
-                "pkr_minimum_budget": 55600.0,
+                "inr_minimum_budget": 8000.0,  # Reduced from 16000
+                "pkr_minimum_budget": 27800.0,  # Reduced from 55600
                 "require_payment_verified_for_inr_pkr": True,
                 "require_identity_verified_for_inr_pkr": True,
                 "skip_phone_email_only_for_inr_pkr": True
@@ -354,9 +354,9 @@ class AutoWorkMinimal:
             },
             "filtering": {
                 "max_projects_per_cycle": 50,
-                "skip_projects_with_bids_above": 100,
-                "portfolio_matching": False,
-                "min_skill_match_score": 0.1
+                "skip_projects_with_bids_above": 1000,  # Increased from 100
+                "portfolio_matching": False,  # Disabled
+                "min_skill_match_score": 0.05  # Reduced from 0.1
             },
             "monitoring": {
                 "check_interval_seconds": 15,
@@ -1239,54 +1239,54 @@ class AutoWorkMinimal:
             elif currency_code == 'PKR' and 'pkr_minimum_budget' in currency_config:
                 return currency_config['pkr_minimum_budget']
         
-        # Determine base amounts based on project type
+        # Determine base amounts based on project type - MUCH MORE LENIENT
         if project_type == 'hourly':
-            # Hourly projects: 20 CAD or equivalent
-            base_cad_amount = 20.0
+            # Hourly projects: 5 CAD or equivalent (reduced from 20)
+            base_cad_amount = 5.0
         else:
-            # Fixed projects: 250 CAD or equivalent
-            base_cad_amount = 250.0
+            # Fixed projects: 50 CAD or equivalent (reduced from 250)
+            base_cad_amount = 50.0
         
-        # Currency-specific minimum budgets for FIXED projects (250 CAD equivalent)
+        # Currency-specific minimum budgets for FIXED projects (50 CAD equivalent) - MUCH LOWER
         fixed_currency_minimums = {
-            'USD': 250.0,
-            'CAD': 250.0,
-            'EUR': 230.0,  # Approx 250 USD equivalent
-            'GBP': 200.0,  # Approx 250 USD equivalent
-            'AUD': 380.0,  # Approx 250 USD equivalent
-            'INR': 20000.0,  # 250 CAD converted to INR (approx 1 CAD = 80 INR)
-            'PKR': 69500.0,  # 250 CAD converted to PKR (approx 1 CAD = 278 PKR)
-            'PHP': 14000.0,  # 250 CAD converted to PHP (approx 1 CAD = 56 PHP)
-            'BRL': 1250.0,   # 250 CAD converted to BRL (approx 1 CAD = 5 BRL)
-            'MXN': 4250.0,   # 250 CAD converted to MXN (approx 1 CAD = 17 MXN)
-            'JPY': 37500.0,  # 250 CAD converted to JPY (approx 1 CAD = 150 JPY)
-            'CNY': 1800.0,   # 250 CAD converted to CNY (approx 1 CAD = 7.2 CNY)
-            'ZAR': 4625.0,   # 250 CAD converted to ZAR (approx 1 CAD = 18.5 ZAR)
-            'NGN': 112500.0, # 250 CAD converted to NGN (approx 1 CAD = 450 NGN)
-            'EGP': 7750.0,   # 250 CAD converted to EGP (approx 1 CAD = 31 EGP)
-            'AED': 917.5,    # 250 CAD converted to AED (approx 1 CAD = 3.67 AED)
-            'SAR': 937.5,    # 250 CAD converted to SAR (approx 1 CAD = 3.75 SAR)
+            'USD': 50.0,    # Reduced from 250
+            'CAD': 50.0,    # Reduced from 250
+            'EUR': 45.0,    # Reduced from 230
+            'GBP': 40.0,    # Reduced from 200
+            'AUD': 75.0,    # Reduced from 380
+            'INR': 4000.0,  # Reduced from 20000
+            'PKR': 13900.0, # Reduced from 69500
+            'PHP': 2800.0,  # Reduced from 14000
+            'BRL': 250.0,   # Reduced from 1250
+            'MXN': 850.0,   # Reduced from 4250
+            'JPY': 7500.0,  # Reduced from 37500
+            'CNY': 360.0,   # Reduced from 1800
+            'ZAR': 925.0,   # Reduced from 4625
+            'NGN': 22500.0, # Reduced from 112500
+            'EGP': 1550.0,  # Reduced from 7750
+            'AED': 183.5,   # Reduced from 917.5
+            'SAR': 187.5,   # Reduced from 937.5
         }
         
-        # Currency-specific minimum budgets for HOURLY projects (20 CAD equivalent)
+        # Currency-specific minimum budgets for HOURLY projects (5 CAD equivalent) - MUCH LOWER
         hourly_currency_minimums = {
-            'USD': 20.0,
-            'CAD': 20.0,
-            'EUR': 18.0,     # Approx 20 USD equivalent
-            'GBP': 16.0,     # Approx 20 USD equivalent
-            'AUD': 30.0,     # Approx 20 USD equivalent
-            'INR': 1600.0,   # 20 CAD converted to INR (approx 1 CAD = 80 INR)
-            'PKR': 5560.0,   # 20 CAD converted to PKR (approx 1 CAD = 278 PKR)
-            'PHP': 1120.0,   # 20 CAD converted to PHP (approx 1 CAD = 56 PHP)
-            'BRL': 100.0,    # 20 CAD converted to BRL (approx 1 CAD = 5 BRL)
-            'MXN': 340.0,    # 20 CAD converted to MXN (approx 1 CAD = 17 MXN)
-            'JPY': 3000.0,   # 20 CAD converted to JPY (approx 1 CAD = 150 JPY)
-            'CNY': 144.0,    # 20 CAD converted to CNY (approx 1 CAD = 7.2 CNY)
-            'ZAR': 370.0,    # 20 CAD converted to ZAR (approx 1 CAD = 18.5 ZAR)
-            'NGN': 9000.0,   # 20 CAD converted to NGN (approx 1 CAD = 450 NGN)
-            'EGP': 620.0,    # 20 CAD converted to EGP (approx 1 CAD = 31 EGP)
-            'AED': 73.4,     # 20 CAD converted to AED (approx 1 CAD = 3.67 AED)
-            'SAR': 75.0,     # 20 CAD converted to SAR (approx 1 CAD = 3.75 SAR)
+            'USD': 5.0,     # Reduced from 20
+            'CAD': 5.0,     # Reduced from 20
+            'EUR': 4.5,     # Reduced from 18
+            'GBP': 4.0,     # Reduced from 16
+            'AUD': 7.5,     # Reduced from 30
+            'INR': 400.0,   # Reduced from 1600
+            'PKR': 1390.0,  # Reduced from 5560
+            'PHP': 280.0,   # Reduced from 1120
+            'BRL': 25.0,    # Reduced from 100
+            'MXN': 85.0,    # Reduced from 340
+            'JPY': 750.0,   # Reduced from 3000
+            'CNY': 36.0,    # Reduced from 144
+            'ZAR': 92.5,    # Reduced from 370
+            'NGN': 2250.0,  # Reduced from 9000
+            'EGP': 155.0,   # Reduced from 620
+            'AED': 18.35,   # Reduced from 73.4
+            'SAR': 18.75,   # Reduced from 75
         }
         
         # Select the appropriate currency minimums based on project type
@@ -1325,7 +1325,7 @@ class AutoWorkMinimal:
                     self.processed_projects.add(project_id)
                     return False, f"Spam: {spam_reasons[0]}"
             
-            # QUALITY CHECK - For premium mode
+            # QUALITY CHECK - For premium mode only (skip if not in premium mode)
             if self.premium_mode and self.premium_filter:
                 is_premium, quality_score, factors = self.premium_filter.is_premium_project(project)
                 min_quality_score = self.config.get('quality_filters', {}).get('min_quality_score', 50)
@@ -1337,18 +1337,20 @@ class AutoWorkMinimal:
                 else:
                     logging.info(f"⭐ Quality project (score: {quality_score}): {project.get('title', '')[:50]}...")
             
-            # Check bid count
+            # Check bid count - be more lenient
             bid_stats = project.get('bid_stats', {})
             if isinstance(bid_stats, dict):
                 bid_count = bid_stats.get('bid_count', 0)
             else:
                 bid_count = 0
                 
-            if bid_count > self.config['filtering']['skip_projects_with_bids_above']:
+            # Increase the bid limit to be more lenient
+            max_bids = self.config['filtering']['skip_projects_with_bids_above']
+            if bid_count > max_bids:
                 self.skipped_projects['too_many_bids'] += 1
                 return False, f"Too many bids ({bid_count})"
             
-            # Check budget with currency-specific minimums based on project type
+            # Check budget with more lenient minimums
             budget = project.get('budget', {})
             if isinstance(budget, dict):
                 min_budget = float(budget.get('minimum', 0))
@@ -1361,6 +1363,9 @@ class AutoWorkMinimal:
                 
                 # Get currency-specific minimum budget based on project type
                 min_required = self.get_minimum_budget_for_currency(currency_code, budget_type)
+                
+                # Be more lenient with budget - reduce requirements by 50%
+                min_required = min_required * 0.5
                 
                 # Compare in the same currency
                 if min_budget < min_required:
@@ -1386,11 +1391,12 @@ class AutoWorkMinimal:
                 budget_type = 'fixed'  # Default to fixed for unknown budget structure
                 
                 min_required = self.get_minimum_budget_for_currency(currency_code, budget_type)
+                min_required = min_required * 0.5  # Be more lenient
                 if min_budget < min_required:
                     self.skipped_projects['low_budget'] += 1
                     return False, f"Budget too low for {budget_type} project (USD {min_budget:.2f} < USD {min_required:.2f})"
             
-            # Check client verification
+            # Check client verification - be more lenient
             if self.config['client_filtering']['enabled']:
                 employer_id = project.get('owner_id')
                 if employer_id:
@@ -1402,11 +1408,13 @@ class AutoWorkMinimal:
                         currency_code in ['INR', 'PKR']
                     )
                     
+                    # Only do strict verification for INR/PKR, otherwise be lenient
                     if is_inr_pkr_strict:
                         logging.info(f"🔍 Applying STRICT verification for {currency_code} project")
                         client_analysis = self.analyze_client_for_inr_pkr(employer_id)
                     else:
-                        client_analysis = self.analyze_client(employer_id)
+                        # For non-INR/PKR projects, do basic verification only
+                        client_analysis = self.analyze_client_basic(employer_id)
                     
                     if not client_analysis.get('is_good_client', True):
                         # Use specific tracking for INR/PKR currencies
@@ -1420,10 +1428,12 @@ class AutoWorkMinimal:
                     self.skipped_projects['client_verification_failed'] += 1
                     return False, "No employer ID found"
             
-            # Check skill match
+            # Check skill match - be more lenient
             if self.config['filtering']['portfolio_matching']:
                 match_score = self.calculate_skill_match(project)
-                if match_score < self.config['filtering']['min_skill_match_score']:
+                # Reduce the minimum skill match requirement
+                min_skill_match = self.config['filtering']['min_skill_match_score'] * 0.5
+                if match_score < min_skill_match:
                     self.skipped_projects['not_matched'] += 1
                     return False, f"Poor skill match ({match_score:.2f})"
             
@@ -1432,6 +1442,55 @@ class AutoWorkMinimal:
         except Exception as e:
             logging.error(f"Error in should_bid_on_project: {e}")
             return False, f"Error: {str(e)}"
+
+    def analyze_client_basic(self, employer_id: int) -> Dict[str, Any]:
+        """Basic client analysis - more lenient than full verification"""
+        try:
+            # Get client details from Freelancer API
+            endpoint = f"{self.api_base}/users/0.1/users/{employer_id}"
+            response = requests.get(endpoint, headers=self.headers, timeout=30)
+            
+            if response.status_code != 200:
+                logging.warning(f"Could not fetch client details for {employer_id}: {response.status_code}")
+                return {'is_good_client': True, 'reason': 'Could not fetch client details - allowing bid'}
+            
+            data = response.json()
+            user_data = data.get('result', {})
+            
+            # Initialize verification results - start with True
+            verification_results = {
+                'is_good_client': True,
+                'reasons': [],
+                'client_name': user_data.get('username', 'Unknown'),
+                'verification_status': {}
+            }
+            
+            # Remove client rating requirement - accept any rating
+            client_rating = user_data.get('rating', 0)
+            verification_results['verification_status']['rating'] = client_rating
+            # Do not reject based on rating
+            
+            # Check completion rate - be very lenient
+            completion_rate = user_data.get('completion_rate', 0)
+            verification_results['verification_status']['completion_rate'] = completion_rate
+            
+            # Only reject if completion rate is extremely low (below 0.1)
+            if completion_rate < 0.1:
+                verification_results['is_good_client'] = False
+                verification_results['reasons'].append(f'Completion rate too low ({completion_rate:.1%} < 10%)')
+            
+            # Log verification results
+            if verification_results['is_good_client']:
+                logging.info(f"✅ Client {verification_results['client_name']} passed basic verification")
+            else:
+                logging.warning(f"❌ Client {verification_results['client_name']} failed basic verification: {', '.join(verification_results['reasons'])}")
+            
+            return verification_results
+            
+        except Exception as e:
+            logging.error(f"Error analyzing client {employer_id}: {e}")
+            # Be lenient on errors - allow the bid
+            return {'is_good_client': True, 'reason': f'Error analyzing client - allowing bid: {str(e)}'}
 
     def check_and_sign_nda(self, project_id: int) -> bool:
         """Check if project requires NDA and sign it"""
