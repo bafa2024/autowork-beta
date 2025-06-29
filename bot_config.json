@@ -31,6 +31,16 @@
     "skip_phone_email_only": true
   },
   
+  "currency_filtering": {
+    "enabled": true,
+    "inr_pkr_strict_filtering": true,
+    "inr_minimum_budget": 16000.0,
+    "pkr_minimum_budget": 55600.0,
+    "require_payment_verified_for_inr_pkr": true,
+    "require_identity_verified_for_inr_pkr": true,
+    "skip_phone_email_only_for_inr_pkr": true
+  },
+  
   "elite_projects": {
     "auto_sign_nda": true,
     "auto_sign_ip_agreement": true,
@@ -51,8 +61,8 @@
   },
   
   "monitoring": {
-    "check_interval_seconds": 30,
-    "peak_hours_interval": 20,
+    "check_interval_seconds": 15,
+    "peak_hours_interval": 15,
     "off_hours_interval": 60,
     "error_retry_delay_seconds": 300,
     "max_consecutive_errors": 5,

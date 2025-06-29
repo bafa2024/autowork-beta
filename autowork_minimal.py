@@ -109,7 +109,9 @@ class AutoWorkMinimal:
             'not_matched': 0,
             'invalid_data': 0,
             'spam': 0,
-            'low_quality': 0
+            'low_quality': 0,
+            'inr_pkr_low_budget': 0,
+            'inr_pkr_client_verification_failed': 0
         }
         
         # Performance tracking
@@ -336,6 +338,15 @@ class AutoWorkMinimal:
                 "require_identity_verified": True,
                 "skip_phone_email_only": True
             },
+            "currency_filtering": {
+                "enabled": True,
+                "inr_pkr_strict_filtering": True,
+                "inr_minimum_budget": 16000.0,
+                "pkr_minimum_budget": 55600.0,
+                "require_payment_verified_for_inr_pkr": True,
+                "require_identity_verified_for_inr_pkr": True,
+                "skip_phone_email_only_for_inr_pkr": True
+            },
             "elite_projects": {
                 "auto_sign_nda": True,
                 "auto_sign_ip_agreement": True,
@@ -348,8 +359,8 @@ class AutoWorkMinimal:
                 "min_skill_match_score": 0.1
             },
             "monitoring": {
-                "check_interval_seconds": 30,
-                "peak_hours_interval": 20,
+                "check_interval_seconds": 15,
+                "peak_hours_interval": 15,
                 "off_hours_interval": 60,
                 "error_retry_delay_seconds": 300,
                 "max_consecutive_errors": 5,
@@ -726,6 +737,76 @@ class AutoWorkMinimal:
         except Exception as e:
             logging.error(f"Error analyzing client {employer_id}: {e}")
             return {'is_good_client': False, 'reason': f'Error analyzing client: {str(e)}'}
+
+    def analyze_client_for_inr_pkr(self, employer_id: int) -> Dict[str, Any]:
+        """Analyze client with strict verification requirements for INR/PKR currencies"""
+        try:
+            # Get client details from Freelancer API
+            endpoint = f"{self.api_base}/users/0.1/users/{employer_id}"
+            response = requests.get(endpoint, headers=self.headers, timeout=30)
+            
+            if response.status_code != 200:
+                logging.warning(f"Could not fetch client details for {employer_id}: {response.status_code}")
+                return {'is_good_client': False, 'reason': 'Could not fetch client details'}
+            
+            data = response.json()
+            user_data = data.get('result', {})
+            
+            # Initialize verification results for strict INR/PKR filtering
+            verification_results = {
+                'is_good_client': True,
+                'reasons': [],
+                'client_name': user_data.get('username', 'Unknown'),
+                'verification_status': {},
+                'strict_check': True
+            }
+            
+            currency_config = self.config.get('currency_filtering', {})
+            
+            # STRICT CHECK: Payment method verification (REQUIRED for INR/PKR)
+            if currency_config.get('require_payment_verified_for_inr_pkr', True):
+                payment_verified = user_data.get('payment_verified', False)
+                verification_results['verification_status']['payment_method'] = payment_verified
+                
+                if not payment_verified:
+                    verification_results['is_good_client'] = False
+                    verification_results['reasons'].append('Payment method verification REQUIRED for INR/PKR projects')
+            
+            # STRICT CHECK: Identity verification (REQUIRED for INR/PKR)
+            if currency_config.get('require_identity_verified_for_inr_pkr', True):
+                identity_verified = user_data.get('identity_verified', False)
+                verification_results['verification_status']['identity_verified'] = identity_verified
+                
+                if not identity_verified:
+                    verification_results['is_good_client'] = False
+                    verification_results['reasons'].append('Identity verification REQUIRED for INR/PKR projects')
+            
+            # STRICT CHECK: Skip if only phone/email verified (REQUIRED for INR/PKR)
+            if currency_config.get('skip_phone_email_only_for_inr_pkr', True):
+                phone_verified = user_data.get('phone_verified', False)
+                email_verified = user_data.get('email_verified', False)
+                payment_verified = user_data.get('payment_verified', False)
+                identity_verified = user_data.get('identity_verified', False)
+                
+                verification_results['verification_status']['phone_verified'] = phone_verified
+                verification_results['verification_status']['email_verified'] = email_verified
+                
+                # Skip if only phone/email verified but no payment/identity verification
+                if (phone_verified or email_verified) and not (payment_verified or identity_verified):
+                    verification_results['is_good_client'] = False
+                    verification_results['reasons'].append('Only phone/email verified - insufficient verification for INR/PKR projects')
+            
+            # Log strict verification results
+            if verification_results['is_good_client']:
+                logging.info(f"✅ Client {verification_results['client_name']} passed STRICT INR/PKR verification checks")
+            else:
+                logging.warning(f"❌ Client {verification_results['client_name']} failed STRICT INR/PKR verification: {', '.join(verification_results['reasons'])}")
+            
+            return verification_results
+            
+        except Exception as e:
+            logging.error(f"Error analyzing client for INR/PKR {employer_id}: {e}")
+            return {'is_good_client': False, 'reason': f'Error analyzing client for INR/PKR: {str(e)}'}
 
     def calculate_bid_priority(self, project: Dict) -> Tuple[int, str]:
         """Calculate priority score with premium boost"""
@@ -1148,6 +1229,16 @@ class AutoWorkMinimal:
         currency_code = currency_code.upper()
         project_type = project_type.lower()
         
+        # Check if currency filtering is enabled and get custom minimums
+        if self.config.get('currency_filtering', {}).get('enabled', False):
+            currency_config = self.config['currency_filtering']
+            
+            # Use custom INR/PKR minimums if available
+            if currency_code == 'INR' and 'inr_minimum_budget' in currency_config:
+                return currency_config['inr_minimum_budget']
+            elif currency_code == 'PKR' and 'pkr_minimum_budget' in currency_config:
+                return currency_config['pkr_minimum_budget']
+        
         # Determine base amounts based on project type
         if project_type == 'hourly':
             # Hourly projects: 20 CAD or equivalent
@@ -1273,7 +1364,11 @@ class AutoWorkMinimal:
                 
                 # Compare in the same currency
                 if min_budget < min_required:
-                    self.skipped_projects['low_budget'] += 1
+                    # Use specific tracking for INR/PKR currencies
+                    if currency_code in ['INR', 'PKR']:
+                        self.skipped_projects['inr_pkr_low_budget'] += 1
+                    else:
+                        self.skipped_projects['low_budget'] += 1
                     
                     # Also show USD equivalent for reference
                     if self.currency_converter and currency_code != 'USD':
@@ -1299,9 +1394,26 @@ class AutoWorkMinimal:
             if self.config['client_filtering']['enabled']:
                 employer_id = project.get('owner_id')
                 if employer_id:
-                    client_analysis = self.analyze_client(employer_id)
+                    # Check if this is INR/PKR currency and apply strict filtering
+                    currency_config = self.config.get('currency_filtering', {})
+                    is_inr_pkr_strict = (
+                        currency_config.get('enabled', False) and 
+                        currency_config.get('inr_pkr_strict_filtering', False) and
+                        currency_code in ['INR', 'PKR']
+                    )
+                    
+                    if is_inr_pkr_strict:
+                        logging.info(f"🔍 Applying STRICT verification for {currency_code} project")
+                        client_analysis = self.analyze_client_for_inr_pkr(employer_id)
+                    else:
+                        client_analysis = self.analyze_client(employer_id)
+                    
                     if not client_analysis.get('is_good_client', True):
-                        self.skipped_projects['client_verification_failed'] += 1
+                        # Use specific tracking for INR/PKR currencies
+                        if is_inr_pkr_strict:
+                            self.skipped_projects['inr_pkr_client_verification_failed'] += 1
+                        else:
+                            self.skipped_projects['client_verification_failed'] += 1
                         reasons = client_analysis.get('reasons', ['Unknown verification failure'])
                         return False, f"Client verification failed: {', '.join(reasons)}"
                 else:
