@@ -105,6 +105,7 @@ class AutoWorkMinimal:
             'too_many_bids': 0,
             'low_budget': 0,
             'bad_client': 0,
+            'client_verification_failed': 0,
             'not_matched': 0,
             'invalid_data': 0,
             'spam': 0,
@@ -325,11 +326,15 @@ class AutoWorkMinimal:
                 "min_profitable_budget": 250
             },
             "client_filtering": {
-                "enabled": False,
+                "enabled": True,
                 "min_client_rating": 3.0,
                 "min_completion_rate": 0.5,
                 "min_projects_posted": 0,
-                "check_payment_verified": False
+                "check_payment_verified": True,
+                "require_payment_method": True,
+                "require_deposit": False,
+                "require_identity_verified": True,
+                "skip_phone_email_only": True
             },
             "elite_projects": {
                 "auto_sign_nda": True,
@@ -620,10 +625,107 @@ class AutoWorkMinimal:
         }
 
     def analyze_client(self, employer_id: int) -> Dict[str, Any]:
-        """Analyze client history and reputation"""
-        # Simplified version - always return good client for now
-        # You can implement full client analysis later
-        return {'is_good_client': True}
+        """Analyze client history and reputation with comprehensive verification checks"""
+        try:
+            # Get client details from Freelancer API
+            endpoint = f"{self.api_base}/users/0.1/users/{employer_id}"
+            response = requests.get(endpoint, headers=self.headers, timeout=30)
+            
+            if response.status_code != 200:
+                logging.warning(f"Could not fetch client details for {employer_id}: {response.status_code}")
+                return {'is_good_client': False, 'reason': 'Could not fetch client details'}
+            
+            data = response.json()
+            user_data = data.get('result', {})
+            
+            # Initialize verification results
+            verification_results = {
+                'is_good_client': True,
+                'reasons': [],
+                'client_name': user_data.get('username', 'Unknown'),
+                'verification_status': {}
+            }
+            
+            # Check payment method verification
+            if self.config['client_filtering']['require_payment_method']:
+                payment_verified = user_data.get('payment_verified', False)
+                verification_results['verification_status']['payment_method'] = payment_verified
+                
+                if not payment_verified:
+                    verification_results['is_good_client'] = False
+                    verification_results['reasons'].append('Payment method not verified')
+            
+            # Check for deposits (optional)
+            if self.config['client_filtering']['require_deposit']:
+                has_deposit = user_data.get('has_deposit', False)
+                verification_results['verification_status']['has_deposit'] = has_deposit
+                
+                if not has_deposit:
+                    verification_results['is_good_client'] = False
+                    verification_results['reasons'].append('No deposit made')
+            
+            # Check identity verification
+            if self.config['client_filtering']['require_identity_verified']:
+                identity_verified = user_data.get('identity_verified', False)
+                verification_results['verification_status']['identity_verified'] = identity_verified
+                
+                if not identity_verified:
+                    verification_results['is_good_client'] = False
+                    verification_results['reasons'].append('Identity not verified')
+            
+            # Check if only phone/email verified (skip these)
+            if self.config['client_filtering']['skip_phone_email_only']:
+                phone_verified = user_data.get('phone_verified', False)
+                email_verified = user_data.get('email_verified', False)
+                payment_verified = user_data.get('payment_verified', False)
+                identity_verified = user_data.get('identity_verified', False)
+                
+                verification_results['verification_status']['phone_verified'] = phone_verified
+                verification_results['verification_status']['email_verified'] = email_verified
+                
+                # Skip if only phone/email verified but no payment/identity verification
+                if (phone_verified or email_verified) and not (payment_verified or identity_verified):
+                    verification_results['is_good_client'] = False
+                    verification_results['reasons'].append('Only phone/email verified - insufficient verification')
+            
+            # Check client rating
+            min_rating = self.config['client_filtering']['min_client_rating']
+            client_rating = user_data.get('rating', 0)
+            verification_results['verification_status']['rating'] = client_rating
+            
+            if client_rating < min_rating:
+                verification_results['is_good_client'] = False
+                verification_results['reasons'].append(f'Client rating too low ({client_rating} < {min_rating})')
+            
+            # Check completion rate
+            min_completion_rate = self.config['client_filtering']['min_completion_rate']
+            completion_rate = user_data.get('completion_rate', 0)
+            verification_results['verification_status']['completion_rate'] = completion_rate
+            
+            if completion_rate < min_completion_rate:
+                verification_results['is_good_client'] = False
+                verification_results['reasons'].append(f'Completion rate too low ({completion_rate:.1%} < {min_completion_rate:.1%})')
+            
+            # Check number of projects posted
+            min_projects = self.config['client_filtering']['min_projects_posted']
+            projects_posted = user_data.get('projects_posted', 0)
+            verification_results['verification_status']['projects_posted'] = projects_posted
+            
+            if projects_posted < min_projects:
+                verification_results['is_good_client'] = False
+                verification_results['reasons'].append(f'Too few projects posted ({projects_posted} < {min_projects})')
+            
+            # Log verification results
+            if verification_results['is_good_client']:
+                logging.info(f"✅ Client {verification_results['client_name']} passed verification checks")
+            else:
+                logging.warning(f"❌ Client {verification_results['client_name']} failed verification: {', '.join(verification_results['reasons'])}")
+            
+            return verification_results
+            
+        except Exception as e:
+            logging.error(f"Error analyzing client {employer_id}: {e}")
+            return {'is_good_client': False, 'reason': f'Error analyzing client: {str(e)}'}
 
     def calculate_bid_priority(self, project: Dict) -> Tuple[int, str]:
         """Calculate priority score with premium boost"""
@@ -1041,12 +1143,21 @@ class AutoWorkMinimal:
                 'bid_count': 0
             }
 
-    def get_minimum_budget_for_currency(self, currency_code: str) -> float:
-        """Get minimum budget threshold for specific currency"""
+    def get_minimum_budget_for_currency(self, currency_code: str, project_type: str = 'fixed') -> float:
+        """Get minimum budget threshold for specific currency and project type"""
         currency_code = currency_code.upper()
+        project_type = project_type.lower()
         
-        # Currency-specific minimum budgets
-        currency_minimums = {
+        # Determine base amounts based on project type
+        if project_type == 'hourly':
+            # Hourly projects: 20 CAD or equivalent
+            base_cad_amount = 20.0
+        else:
+            # Fixed projects: 250 CAD or equivalent
+            base_cad_amount = 250.0
+        
+        # Currency-specific minimum budgets for FIXED projects (250 CAD equivalent)
+        fixed_currency_minimums = {
             'USD': 250.0,
             'CAD': 250.0,
             'EUR': 230.0,  # Approx 250 USD equivalent
@@ -1066,16 +1177,43 @@ class AutoWorkMinimal:
             'SAR': 937.5,    # 250 CAD converted to SAR (approx 1 CAD = 3.75 SAR)
         }
         
-        # Return currency-specific minimum or default to USD equivalent
+        # Currency-specific minimum budgets for HOURLY projects (20 CAD equivalent)
+        hourly_currency_minimums = {
+            'USD': 20.0,
+            'CAD': 20.0,
+            'EUR': 18.0,     # Approx 20 USD equivalent
+            'GBP': 16.0,     # Approx 20 USD equivalent
+            'AUD': 30.0,     # Approx 20 USD equivalent
+            'INR': 1600.0,   # 20 CAD converted to INR (approx 1 CAD = 80 INR)
+            'PKR': 5560.0,   # 20 CAD converted to PKR (approx 1 CAD = 278 PKR)
+            'PHP': 1120.0,   # 20 CAD converted to PHP (approx 1 CAD = 56 PHP)
+            'BRL': 100.0,    # 20 CAD converted to BRL (approx 1 CAD = 5 BRL)
+            'MXN': 340.0,    # 20 CAD converted to MXN (approx 1 CAD = 17 MXN)
+            'JPY': 3000.0,   # 20 CAD converted to JPY (approx 1 CAD = 150 JPY)
+            'CNY': 144.0,    # 20 CAD converted to CNY (approx 1 CAD = 7.2 CNY)
+            'ZAR': 370.0,    # 20 CAD converted to ZAR (approx 1 CAD = 18.5 ZAR)
+            'NGN': 9000.0,   # 20 CAD converted to NGN (approx 1 CAD = 450 NGN)
+            'EGP': 620.0,    # 20 CAD converted to EGP (approx 1 CAD = 31 EGP)
+            'AED': 73.4,     # 20 CAD converted to AED (approx 1 CAD = 3.67 AED)
+            'SAR': 75.0,     # 20 CAD converted to SAR (approx 1 CAD = 3.75 SAR)
+        }
+        
+        # Select the appropriate currency minimums based on project type
+        if project_type == 'hourly':
+            currency_minimums = hourly_currency_minimums
+        else:
+            currency_minimums = fixed_currency_minimums
+        
+        # Return currency-specific minimum or convert base amount
         if currency_code in currency_minimums:
             return currency_minimums[currency_code]
         
-        # For unknown currencies, convert 250 USD to that currency
+        # For unknown currencies, convert base CAD amount to that currency
         if self.currency_converter:
-            return self.currency_converter.get_min_budget_for_currency(250.0, currency_code)
+            return self.currency_converter.get_min_budget_for_currency(base_cad_amount, currency_code)
         
-        # Fallback to USD equivalent
-        return 250.0
+        # Fallback to base CAD amount
+        return base_cad_amount
 
     def should_bid_on_project(self, project: Dict) -> Tuple[bool, str]:
         """Determine if should bid on a project with spam and quality checks"""
@@ -1119,14 +1257,19 @@ class AutoWorkMinimal:
                 self.skipped_projects['too_many_bids'] += 1
                 return False, f"Too many bids ({bid_count})"
             
-            # Check budget with currency-specific minimums
+            # Check budget with currency-specific minimums based on project type
             budget = project.get('budget', {})
             if isinstance(budget, dict):
                 min_budget = float(budget.get('minimum', 0))
                 currency_code = project.get('currency', {}).get('code', 'USD')
                 
-                # Get currency-specific minimum budget
-                min_required = self.get_minimum_budget_for_currency(currency_code)
+                # Determine project type (hourly vs fixed)
+                budget_type = budget.get('type', 'fixed').lower()
+                if budget_type not in ['hourly', 'fixed']:
+                    budget_type = 'fixed'  # Default to fixed if unknown
+                
+                # Get currency-specific minimum budget based on project type
+                min_required = self.get_minimum_budget_for_currency(currency_code, budget_type)
                 
                 # Compare in the same currency
                 if min_budget < min_required:
@@ -1140,23 +1283,30 @@ class AutoWorkMinimal:
                     else:
                         budget_info = f"{currency_code} {min_budget:.2f} < {currency_code} {min_required:.2f}"
                     
-                    return False, f"Budget too low ({budget_info})"
+                    project_type_display = "hourly" if budget_type == 'hourly' else "fixed"
+                    return False, f"Budget too low for {project_type_display} project ({budget_info})"
             else:
                 min_budget = 0
                 currency_code = 'USD'
+                budget_type = 'fixed'  # Default to fixed for unknown budget structure
                 
-                if min_budget < 250:  # Default USD minimum
+                min_required = self.get_minimum_budget_for_currency(currency_code, budget_type)
+                if min_budget < min_required:
                     self.skipped_projects['low_budget'] += 1
-                    return False, f"Budget too low (USD {min_budget:.2f} < USD 250.00)"
+                    return False, f"Budget too low for {budget_type} project (USD {min_budget:.2f} < USD {min_required:.2f})"
             
-            # Check client (optional)
+            # Check client verification
             if self.config['client_filtering']['enabled']:
                 employer_id = project.get('owner_id')
                 if employer_id:
                     client_analysis = self.analyze_client(employer_id)
                     if not client_analysis.get('is_good_client', True):
-                        self.skipped_projects['bad_client'] += 1
-                        return False, "Client doesn't meet criteria"
+                        self.skipped_projects['client_verification_failed'] += 1
+                        reasons = client_analysis.get('reasons', ['Unknown verification failure'])
+                        return False, f"Client verification failed: {', '.join(reasons)}"
+                else:
+                    self.skipped_projects['client_verification_failed'] += 1
+                    return False, "No employer ID found"
             
             # Check skill match
             if self.config['filtering']['portfolio_matching']:

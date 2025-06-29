@@ -20,11 +20,15 @@
   },
   
   "client_filtering": {
-    "enabled": false,
+    "enabled": true,
     "min_client_rating": 3.0,
     "min_completion_rate": 0.5,
     "min_projects_posted": 0,
-    "check_payment_verified": false
+    "check_payment_verified": true,
+    "require_payment_method": true,
+    "require_deposit": false,
+    "require_identity_verified": true,
+    "skip_phone_email_only": true
   },
   
   "elite_projects": {
