@@ -1457,33 +1457,53 @@ class AutoWorkMinimal:
             data = response.json()
             user_data = data.get('result', {})
             
-            # Initialize verification results - start with True
+            # Initialize verification results - start with False
             verification_results = {
-                'is_good_client': True,
+                'is_good_client': False,
                 'reasons': [],
                 'client_name': user_data.get('username', 'Unknown'),
                 'verification_status': {}
             }
             
-            # Remove client rating requirement - accept any rating
-            client_rating = user_data.get('rating', 0)
-            verification_results['verification_status']['rating'] = client_rating
-            # Do not reject based on rating
+            # Get verification statuses
+            has_deposit = user_data.get('has_deposit', False)
+            payment_verified = user_data.get('payment_verified', False)
+            identity_verified = user_data.get('identity_verified', False)
+            email_verified = user_data.get('email_verified', False)
+            phone_verified = user_data.get('phone_verified', False)
             
-            # Check completion rate - be very lenient
-            completion_rate = user_data.get('completion_rate', 0)
-            verification_results['verification_status']['completion_rate'] = completion_rate
+            # Store verification statuses
+            verification_results['verification_status'] = {
+                'has_deposit': has_deposit,
+                'payment_verified': payment_verified,
+                'identity_verified': identity_verified,
+                'email_verified': email_verified,
+                'phone_verified': phone_verified
+            }
             
-            # Only reject if completion rate is extremely low (below 0.1)
-            if completion_rate < 0.1:
+            # Check verification criteria: ANY of these conditions should pass
+            # 1. Made a deposit, OR
+            # 2. Verified payment method, OR
+            # 3. Verified identity AND verified email AND verified phone
+            
+            if has_deposit:
+                verification_results['is_good_client'] = True
+                verification_results['reasons'].append('Client has made a deposit')
+            elif payment_verified:
+                verification_results['is_good_client'] = True
+                verification_results['reasons'].append('Client has verified payment method')
+            elif identity_verified and email_verified and phone_verified:
+                verification_results['is_good_client'] = True
+                verification_results['reasons'].append('Client has verified identity, email, and phone')
+            else:
                 verification_results['is_good_client'] = False
-                verification_results['reasons'].append(f'Completion rate too low ({completion_rate:.1%} < 10%)')
+                verification_results['reasons'].append('Client does not meet verification criteria')
             
             # Log verification results
             if verification_results['is_good_client']:
-                logging.info(f"✅ Client {verification_results['client_name']} passed basic verification")
+                logging.info(f"✅ Client {verification_results['client_name']} passed verification: {', '.join(verification_results['reasons'])}")
             else:
-                logging.warning(f"❌ Client {verification_results['client_name']} failed basic verification: {', '.join(verification_results['reasons'])}")
+                logging.warning(f"❌ Client {verification_results['client_name']} failed verification: {', '.join(verification_results['reasons'])}")
             
             return verification_results
             
