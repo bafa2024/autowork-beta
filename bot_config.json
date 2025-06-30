@@ -1,85 +1,154 @@
 {
   "bidding": {
     "delivery_days": 3,
-    "express_delivery_days": 3,
-    "min_bid_delay_seconds": 5,
-    "bid_multiplier_regular": 1.0,
-    "bid_multiplier_elite": 1.0,
-    "default_bid_regular": 100,
-    "default_bid_elite": 150
+    "express_delivery_days": 2,
+    "min_bid_delay_seconds": 10,
+    "bid_multiplier_regular": 1.15,
+    "bid_multiplier_elite": 1.25,
+    "default_bid_regular": 150,
+    "default_bid_elite": 250
   },
   
- "smart_bidding": {
+  "smart_bidding": {
     "enabled": true,
-    "max_existing_bids": 1000,
-    "early_bird_minutes": 60,
-    "instant_bid_threshold": 10,
-    "competitive_pricing": false,
-    "undercut_percentage": 1.0,
-    "min_profitable_budget": 50
+    "max_existing_bids": 20,
+    "early_bird_minutes": 30,
+    "instant_bid_threshold": 5,
+    "competitive_pricing": true,
+    "undercut_percentage": 0.95,
+    "min_profitable_budget": 100
   },
   
   "client_filtering": {
     "enabled": true,
-    "min_client_rating": 0.1,
-    "min_completion_rate": 0.1,
+    "min_client_rating": 0,
+    "min_completion_rate": 0,
     "min_projects_posted": 0,
-    "check_payment_verified": false,
-    "require_payment_method": false,
+    "check_payment_verified": true,
+    "require_payment_method": true,
     "require_deposit": false,
     "require_identity_verified": false,
-    "skip_phone_email_only": false
+    "skip_phone_email_only": true
   },
   
   "currency_filtering": {
     "enabled": true,
     "inr_pkr_strict_filtering": true,
-    "inr_minimum_budget": 8000.0,
-    "pkr_minimum_budget": 27800.0,
-    "require_payment_verified_for_inr_pkr": true,
-    "require_identity_verified_for_inr_pkr": true,
-    "skip_phone_email_only_for_inr_pkr": true
+    "inr_minimum_budget": 15000.0,
+    "pkr_minimum_budget": 69500.0,
+    "require_payment_verified_for_inr_pkr": false,
+    "require_identity_verified_for_inr_pkr": false,
+    "skip_phone_email_only_for_inr_pkr": false,
+    "indian_project_filters": {
+      "enabled": true,
+      "min_inr_budget": 15000.0,
+      "skip_payment_verified_clients": true,
+      "skip_deposit_made_clients": true,
+      "require_no_payment_method": true,
+      "log_filtered_projects": true
+    }
   },
   
   "elite_projects": {
     "auto_sign_nda": true,
     "auto_sign_ip_agreement": true,
-    "track_elite_stats": true
+    "track_elite_stats": true,
+    "prefer_elite": true,
+    "elite_bonus_score": 30
   },
   
   "filtering": {
     "max_projects_per_cycle": 50,
-    "skip_projects_with_bids_above": 1000,
-    "portfolio_matching": false,
-    "min_skill_match_score": 0.05
+    "skip_projects_with_bids_above": 30,
+    "portfolio_matching": true,
+    "min_skill_match_score": 0.3,
+    "min_description_length": 100,
+    "prefer_long_term": true,
+    "required_keywords": ["requirements", "deliverables", "timeline", "budget"],
+    "avoid_keywords": ["urgent", "asap", "easy money", "guaranteed", "passive income"]
+  },
+  
+  "quality_filters": {
+    "enabled": true,
+    "min_quality_score": 45,
+    "min_description_words": 50,
+    "require_clear_requirements": true,
+    "avoid_vague_projects": true,
+    "budget_weight": 0.35,
+    "description_weight": 0.35,
+    "client_weight": 0.1,
+    "competition_weight": 0.2
   },
   
   "spam_filter": {
-    "enabled": false,
+    "enabled": true,
     "log_spam_reasons": true,
-    "save_spam_projects": false
+    "save_spam_projects": false,
+    "custom_spam_keywords": [
+      "whatsapp", "telegram", "contact me", "easy money", 
+      "data entry", "copy paste", "typing job", "survey"
+    ]
+  },
+  
+  "skill_categories": {
+    "primary_skills": ["Python", "Web Scraping", "Automation", "API Integration", "Django", "Flask"],
+    "secondary_skills": ["JavaScript", "React", "Node.js", "PHP", "WordPress"],
+    "avoid_skills": ["Data Entry", "Typing", "Copy Paste", "Survey"],
+    "skill_match_boost": {
+      "perfect_match": 30,
+      "good_match": 20,
+      "partial_match": 10
+    }
+  },
+  
+  "budget_preferences": {
+    "preferred_ranges": {
+      "fixed": {
+        "min": 150,
+        "ideal": 500,
+        "max": 5000
+      },
+      "hourly": {
+        "min": 25,
+        "ideal": 50,
+        "max": 150
+      }
+    },
+    "currency_preferences": ["USD", "EUR", "GBP", "CAD", "AUD"],
+    "avoid_currencies": []
   },
   
   "monitoring": {
-    "check_interval_seconds": 15,
-    "peak_hours_interval": 15,
+    "check_interval_seconds": 30,
+    "peak_hours_interval": 20,
     "off_hours_interval": 60,
     "error_retry_delay_seconds": 300,
     "max_consecutive_errors": 5,
-    "daily_bid_limit": 100
+    "daily_bid_limit": 30,
+    "quality_bids_per_cycle": 5
   },
   
   "performance": {
     "track_analytics": true,
     "ab_testing_enabled": true,
-    "analyze_every_n_cycles": 10
+    "analyze_every_n_cycles": 10,
+    "track_filter_effectiveness": true,
+    "optimize_filters": true
   },
+  
+  "premium_mode": {
+    "enabled": false,
+    "min_premium_score": 70,
+    "premium_bid_bonus": 1.1,
+    "prefer_enterprise_clients": true
+  },
+  
   "contests": {
-  "enabled": true,
-  "min_prize": 100,
-  "max_existing_entries": 500,
-  "min_hours_remaining": 24,
-  "allowed_types": ["Logo Design", "Naming", "Graphic Design", "Web Design", "T-Shirt Design", "Business Card Design", "Banner Design"],
-  "skills": ["Graphic Design", "Content Writing", "Web Development", "UI/UX Design", "SEO", "Digital Marketing"]
-}
+    "enabled": false,
+    "min_prize": 200,
+    "max_existing_entries": 30,
+    "min_hours_remaining": 24,
+    "allowed_types": ["Web Development", "Software Development", "Mobile App"],
+    "skills": ["Python", "JavaScript", "React", "Node.js"]
+  }
 }

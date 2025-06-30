@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Enhanced AutoWork Bot with Smart Features for Higher Win Rate
-Modified for MINIMUM BUDGET BIDDING and 3-DAY DELIVERY
+Enhanced AutoWork Bot with Smart Filtering - Bids only on filtered quality projects
+Modified to use strict filtering criteria before bidding
 """
 
 import os
@@ -35,16 +35,16 @@ class AutoWorkMinimal:
         # Initialize Redis connection
         self.redis_client = self.init_redis()
         
-        # Load configurations FIRST (before filters)
+        # Load configurations
         self.bid_messages = self.load_bid_messages()
         self.skills_map = self.load_skills_map()
         self.config = self.load_config()
         
-        # Initialize spam filter AFTER config is loaded
+        # Initialize spam filter - ENABLED for quality filtering
         try:
             self.spam_filter = SpamFilter()
-            self.spam_filter_enabled = False  # DISABLED for maximum bidding
-            logging.info(f"✓ Spam filter initialized: {'Enabled' if self.spam_filter_enabled else 'Disabled'}")
+            self.spam_filter_enabled = True  # ENABLED for filtering
+            logging.info(f"✓ Spam filter initialized: ENABLED")
         except ImportError:
             logging.warning("Spam filter module not found - continuing without spam filtering")
             self.spam_filter = None
@@ -62,7 +62,7 @@ class AutoWorkMinimal:
         try:
             from premium_filter import PremiumProjectFilter
             self.premium_filter = PremiumProjectFilter(self.config)
-            self.premium_mode = False  # Temporarily disabled to ensure bidding
+            self.premium_mode = self.config.get('premium_mode', {}).get('enabled', False)
             logging.info(f"✓ Premium filter initialized: {'Enabled' if self.premium_mode else 'Disabled'}")
         except Exception as e:
             logging.warning(f"Premium filter initialization failed: {e}")
@@ -94,13 +94,11 @@ class AutoWorkMinimal:
         self.start_time = datetime.now()
         self.today_date = datetime.now().date()
         
-        # Premium tracking
-        self.premium_project_bids = 0
-        self.premium_project_wins = 0
-        self.total_quality_score = 0
-        self.premium_bid_count = 0
+        # Filtering statistics
+        self.filtered_projects_count = 0
+        self.passed_filter_count = 0
         
-        # Skip tracking - including spam and premium
+        # Skip tracking
         self.skipped_projects = {
             'too_many_bids': 0,
             'low_budget': 0,
@@ -110,8 +108,11 @@ class AutoWorkMinimal:
             'invalid_data': 0,
             'spam': 0,
             'low_quality': 0,
-            'inr_pkr_low_budget': 0,
-            'inr_pkr_client_verification_failed': 0
+            'poor_description': 0,
+            'suspicious_title': 0,
+            'currency_filtered': 0,
+            'skills_mismatch': 0,
+            'indian_filtered': 0
         }
         
         # Performance tracking
@@ -135,54 +136,732 @@ class AutoWorkMinimal:
         # Portfolio specializations
         self.specializations = self.load_specializations()
         
-        # Load premium bid messages if available
-        self.premium_bid_messages = self.load_premium_bid_messages()
-        
         # Load state from Redis
         self.load_state_from_redis()
         
-        logging.info("✓ Enhanced Bot initialized with MINIMUM BUDGET BIDDING")
-        logging.info(f"✓ Delivery time: 3 DAYS for all projects")
-        logging.info(f"✓ Bidding strategy: ALWAYS MINIMUM BUDGET")
-        logging.info(f"✓ Filtering mode: ULTRA-LENIENT (maximum bidding)")
-        logging.info(f"✓ Client verification: DISABLED")
-        logging.info(f"✓ Currency filtering: DISABLED")
-        logging.info(f"✓ Spam filtering: DISABLED")
-        logging.info(f"✓ Skill matching: DISABLED")
+        logging.info("✓ Enhanced Bot initialized with SMART FILTERING")
+        logging.info(f"✓ Filtering mode: STRICT - Only quality projects")
+        logging.info(f"✓ Client verification: {'ENABLED' if self.config['client_filtering']['enabled'] else 'DISABLED'}")
+        logging.info(f"✓ Currency filtering: {'ENABLED' if self.config['currency_filtering']['enabled'] else 'DISABLED'}")
+        logging.info(f"✓ Spam filtering: {'ENABLED' if self.spam_filter_enabled else 'DISABLED'}")
+        logging.info(f"✓ Skill matching: {'ENABLED' if self.config['filtering']['portfolio_matching'] else 'DISABLED'}")
+        logging.info(f"✓ Quality filtering: ENABLED")
         
         # Verify token on startup
         if not self.verify_token_on_startup():
             raise ValueError("Token validation failed - please update your token")
 
-    def load_premium_bid_messages(self) -> Dict[str, Dict[str, List[str]]]:
-        """Load premium bid message templates"""
-        premium_file = "bid_messages_premium.json"
+    def load_config(self) -> Dict:
+        """Load configuration with proper filtering settings"""
+        config_file = "bot_config.json"
         
-        if os.path.exists(premium_file):
+        if os.path.exists(config_file):
             try:
-                with open(premium_file, 'r') as f:
-                    messages = json.load(f)
-                    logging.info("✓ Loaded premium bid messages")
-                    return messages
+                with open(config_file, 'r') as f:
+                    config = json.load(f)
+                    logging.info("✓ Loaded configuration from bot_config.json")
+                    return config
             except Exception as e:
-                logging.error(f"Error loading premium bid messages: {e}")
+                logging.error(f"Error loading config: {e}")
         
-        return {}
-   
-    def init_redis(self):
-        """Initialize Redis connection if available"""
-        redis_url = os.environ.get('REDIS_URL')
-        if redis_url:
-            try:
-                client = redis.from_url(redis_url, decode_responses=True)
-                client.ping()
-                logging.info("✓ Connected to Redis for analytics")
-                return client
-            except Exception as e:
-                logging.warning(f"Redis connection failed: {e}")
-        return None
+        # Default configuration with STRICT filtering for quality projects
+        return {
+            "bidding": {
+                "delivery_days": 3,
+                "express_delivery_days": 2,
+                "min_bid_delay_seconds": 10,
+                "bid_multiplier_regular": 1.15,
+                "bid_multiplier_elite": 1.25,
+                "default_bid_regular": 150,
+                "default_bid_elite": 250
+            },
+            "smart_bidding": {
+                "enabled": True,
+                "max_existing_bids": 20,  # Reasonable limit
+                "early_bird_minutes": 30,
+                "instant_bid_threshold": 5,
+                "competitive_pricing": True,
+                "undercut_percentage": 0.95,
+                "min_profitable_budget": 100  # Higher minimum for quality
+            },
+            "client_filtering": {
+                "enabled": True,  # ENABLED - Filter bad clients
+                "min_client_rating": 4.0,  # Good rating required
+                "min_completion_rate": 0.8,  # Good completion rate
+                "min_projects_posted": 2,
+                "check_payment_verified": True,
+                "require_payment_method": True,
+                "require_deposit": False,
+                "require_identity_verified": False,
+                "skip_phone_email_only": True
+            },
+            "currency_filtering": {
+                "enabled": True,  # ENABLED - Filter currencies
+                "inr_pkr_strict_filtering": True,
+                "inr_minimum_budget": 20000.0,
+                "pkr_minimum_budget": 69500.0,
+                "require_payment_verified_for_inr_pkr": True,
+                "require_identity_verified_for_inr_pkr": True,
+                "skip_phone_email_only_for_inr_pkr": True
+            },
+            "elite_projects": {
+                "auto_sign_nda": True,
+                "auto_sign_ip_agreement": True,
+                "track_elite_stats": True,
+                "prefer_elite": True
+            },
+            "filtering": {
+                "max_projects_per_cycle": 50,
+                "skip_projects_with_bids_above": 30,  # Reasonable competition
+                "portfolio_matching": True,  # Match our skills
+                "min_skill_match_score": 0.3,  # Require some skill match
+                "min_description_length": 100,  # Require decent description
+                "prefer_long_term": True
+            },
+            "quality_filters": {
+                "enabled": True,
+                "min_quality_score": 50,  # Minimum quality threshold
+                "min_description_words": 50,
+                "require_clear_requirements": True,
+                "avoid_vague_projects": True
+            },
+            "spam_filter": {
+                "enabled": True,
+                "log_spam_reasons": True,
+                "save_spam_projects": False
+            },
+            "monitoring": {
+                "check_interval_seconds": 30,
+                "peak_hours_interval": 20,
+                "off_hours_interval": 60,
+                "error_retry_delay_seconds": 300,
+                "max_consecutive_errors": 5,
+                "daily_bid_limit": 50
+            },
+            "performance": {
+                "track_analytics": True,
+                "ab_testing_enabled": True,
+                "analyze_every_n_cycles": 10
+            },
+            "premium_mode": {
+                "enabled": False  # Enable if you want only premium projects
+            }
+        }
 
-    def verify_token_on_startup(self):
+    def should_bid_on_project(self, project: Dict) -> Tuple[bool, str]:
+        """Enhanced filtering to bid only on quality projects"""
+        try:
+            project_id = project.get('id')
+            
+            # Skip if already processed
+            if project_id in self.processed_projects:
+                return False, "Already processed"
+            
+            # VALIDATION CHECK - Ensure project data is valid
+            if not self.validate_project_data(project):
+                self.skipped_projects['invalid_data'] += 1
+                return False, "Invalid project data"
+            
+            # SPAM CHECK - Filter spam projects
+            if self.spam_filter_enabled and self.spam_filter:
+                is_spam, spam_reasons = self.spam_filter.is_spam(project)
+                if is_spam:
+                    self.skipped_projects['spam'] += 1
+                    logging.warning(f"🚫 SPAM DETECTED: {project.get('title', '')[:50]}...")
+                    logging.warning(f"   Reasons: {', '.join(spam_reasons[:3])}")
+                    self.processed_projects.add(project_id)
+                    return False, f"Spam: {spam_reasons[0]}"
+            
+            # QUALITY CHECK - Filter low quality projects
+            quality_score = self.calculate_project_quality_score(project)
+            min_quality = self.config.get('quality_filters', {}).get('min_quality_score', 50)
+            if quality_score < min_quality:
+                self.skipped_projects['low_quality'] += 1
+                logging.info(f"📊 Low quality project (score: {quality_score}): {project.get('title', '')[:50]}...")
+                return False, f"Low quality score ({quality_score} < {min_quality})"
+            
+            # DESCRIPTION CHECK - Filter projects with poor descriptions
+            description = project.get('description', '')
+            min_words = self.config.get('quality_filters', {}).get('min_description_words', 50)
+            word_count = len(description.split())
+            if word_count < min_words:
+                self.skipped_projects['poor_description'] += 1
+                return False, f"Description too short ({word_count} words < {min_words})"
+            
+            # BID COUNT CHECK - Filter overcrowded projects
+            bid_stats = project.get('bid_stats', {})
+            if isinstance(bid_stats, dict):
+                bid_count = bid_stats.get('bid_count', 0)
+            else:
+                bid_count = 0
+            
+            max_bids = self.config['filtering']['skip_projects_with_bids_above']
+            if bid_count > max_bids:
+                self.skipped_projects['too_many_bids'] += 1
+                return False, f"Too many bids ({bid_count} > {max_bids})"
+            
+            # BUDGET CHECK - Filter low budget projects
+            budget = project.get('budget', {})
+            if isinstance(budget, dict):
+                min_budget = float(budget.get('minimum', 0))
+                currency_code = project.get('currency', {}).get('code', 'USD')
+                budget_type = budget.get('type', 'fixed').lower()
+                
+                # Get minimum required for currency and type
+                min_required = self.get_minimum_budget_for_currency(currency_code, budget_type)
+                
+                # Apply stricter check for quality
+                quality_min = self.config['smart_bidding']['min_profitable_budget']
+                if self.currency_converter:
+                    min_usd = self.currency_converter.to_usd(min_budget, currency_code)
+                    if min_usd < quality_min:
+                        self.skipped_projects['low_budget'] += 1
+                        return False, f"Budget too low (${min_usd:.2f} < ${quality_min})"
+                elif min_budget < min_required:
+                    self.skipped_projects['low_budget'] += 1
+                    return False, f"Budget too low ({currency_code} {min_budget} < {min_required})"
+            else:
+                self.skipped_projects['invalid_data'] += 1
+                return False, "No budget information"
+            
+            # INDIAN PROJECT FILTERING - Special handling for INR projects
+            if currency_code == 'INR':
+                should_bid, reason = self.should_bid_on_indian_project(project)
+                if not should_bid:
+                    self.skipped_projects['indian_filtered'] += 1
+                    return False, f"Indian project filtered: {reason}"
+                else:
+                    logging.info(f"🇮🇳 INR Project Approved: {project.get('title', 'Unknown')[:50]}... - {reason}")
+            
+            # CLIENT VERIFICATION - Filter bad clients
+            if self.config['client_filtering']['enabled']:
+                employer_id = project.get('owner_id')
+                if employer_id:
+                    # Special check for INR/PKR currencies
+                    if currency_code in ['INR', 'PKR'] and self.config['currency_filtering']['inr_pkr_strict_filtering']:
+                        client_analysis = self.analyze_client_for_inr_pkr(employer_id)
+                    else:
+                        client_analysis = self.analyze_client(employer_id)
+                    
+                    if not client_analysis.get('is_good_client', True):
+                        self.skipped_projects['bad_client'] += 1
+                        return False, f"Client verification failed: {client_analysis.get('reason', 'Unknown')}"
+            
+            # SKILL MATCH CHECK - Ensure project matches our skills
+            if self.config['filtering']['portfolio_matching']:
+                match_score = self.calculate_skill_match(project)
+                min_skill_match = self.config['filtering']['min_skill_match_score']
+                if match_score < min_skill_match:
+                    self.skipped_projects['skills_mismatch'] += 1
+                    return False, f"Poor skill match ({match_score:.2f} < {min_skill_match})"
+            
+            # TITLE CHECK - Filter suspicious titles
+            title = project.get('title', '').lower()
+            suspicious_words = ['urgent', 'asap', 'easy money', 'data entry', 'copy paste']
+            if any(word in title for word in suspicious_words):
+                self.skipped_projects['suspicious_title'] += 1
+                return False, "Suspicious title keywords"
+            
+            # PREMIUM CHECK - If premium mode, only allow premium projects
+            if self.premium_mode and self.premium_filter:
+                is_premium, premium_score, factors = self.premium_filter.is_premium_project(project)
+                if not is_premium:
+                    self.skipped_projects['not_premium'] += 1
+                    return False, f"Not a premium project (score: {premium_score})"
+            
+            # All filters passed
+            self.passed_filter_count += 1
+            return True, f"Quality project passed all filters (score: {quality_score})"
+            
+        except Exception as e:
+            logging.error(f"Error in should_bid_on_project: {e}")
+            return False, f"Error evaluating project: {str(e)}"
+
+    def calculate_project_quality_score(self, project: Dict) -> int:
+        """Calculate quality score for a project (0-100) - lenient on client ratings"""
+        score = 0
+        
+        # Description quality (30 points)
+        description = project.get('description', '')
+        word_count = len(description.split())
+        if word_count >= 200:
+            score += 30
+        elif word_count >= 100:
+            score += 20
+        elif word_count >= 50:
+            score += 10
+        
+        # Has clear requirements (20 points)
+        requirements_keywords = ['requirements', 'need', 'must have', 'looking for', 'deliverables']
+        if any(keyword in description.lower() for keyword in requirements_keywords):
+            score += 20
+        
+        # Budget quality (25 points) - Increased weight
+        budget = project.get('budget', {})
+        if isinstance(budget, dict):
+            min_budget = budget.get('minimum', 0)
+            if self.currency_converter:
+                min_usd = self.currency_converter.to_usd(min_budget, project.get('currency', {}).get('code', 'USD'))
+                if min_usd >= 500:
+                    score += 25
+                elif min_usd >= 250:
+                    score += 20
+                elif min_usd >= 100:
+                    score += 15
+                elif min_usd >= 50:
+                    score += 10
+        
+        # Client quality (10 points) - Reduced weight, focus on payment verification only
+        owner = project.get('owner', {})
+        if isinstance(owner, dict):
+            # Payment verification is still important
+            if owner.get('status', {}).get('payment_verified', False):
+                score += 10
+            # No penalty for lack of rating/reviews
+        
+        # Project features (15 points)
+        upgrades = project.get('upgrades', {})
+        if isinstance(upgrades, dict):
+            if upgrades.get('featured', False):
+                score += 5
+            if upgrades.get('NDA', False):
+                score += 5
+            if upgrades.get('urgent', False):
+                score += 5
+        
+        return min(score, 100)
+
+    def get_minimum_budget_for_currency(self, currency_code: str, project_type: str = 'fixed') -> float:
+        """Get minimum budget threshold for quality projects"""
+        currency_code = currency_code.upper()
+        project_type = project_type.lower()
+        
+        # Quality thresholds for different currencies (higher than before)
+        if project_type == 'hourly':
+            # Hourly projects: Higher quality threshold
+            hourly_minimums = {
+                'USD': 25.0,
+                'CAD': 30.0,
+                'EUR': 22.0,
+                'GBP': 20.0,
+                'AUD': 35.0,
+                'INR': 2000.0,
+                'PKR': 6950.0,
+                'PHP': 1400.0,
+            }
+            return hourly_minimums.get(currency_code, 25.0)
+        else:
+            # Fixed projects: Quality threshold
+            fixed_minimums = {
+                'USD': 100.0,
+                'CAD': 130.0,
+                'EUR': 90.0,
+                'GBP': 80.0,
+                'AUD': 150.0,
+                'INR': 8000.0,
+                'PKR': 27800.0,
+                'PHP': 5600.0,
+            }
+            return fixed_minimums.get(currency_code, 100.0)
+
+    def calculate_bid_priority(self, project: Dict) -> Tuple[int, str]:
+        """Calculate priority with emphasis on quality"""
+        try:
+            score = 100
+            reasons = []
+            
+            # Quality score boost
+            quality_score = self.calculate_project_quality_score(project)
+            score += quality_score // 2  # Add half of quality score
+            if quality_score >= 80:
+                reasons.append(f"⭐ High quality ({quality_score})")
+            elif quality_score >= 60:
+                reasons.append(f"✓ Good quality ({quality_score})")
+            
+            # Time factor
+            try:
+                time_submitted = project.get('time_submitted', '')
+                if time_submitted:
+                    time_posted = datetime.fromisoformat(time_submitted.replace('Z', '+00:00'))
+                    minutes_ago = (datetime.now(time_posted.tzinfo) - time_posted).total_seconds() / 60
+                else:
+                    minutes_ago = 999
+            except:
+                minutes_ago = 999
+            
+            if minutes_ago < 10:
+                score += 40
+                reasons.append("🔥 Very fresh")
+            elif minutes_ago < 30:
+                score += 20
+                reasons.append("⏰ Fresh posting")
+            
+            # Competition level
+            bid_count = project.get('bid_stats', {}).get('bid_count', 0)
+            if bid_count < 5:
+                score += 30
+                reasons.append(f"🎯 Low competition ({bid_count} bids)")
+            elif bid_count < 10:
+                score += 15
+                reasons.append(f"👍 Moderate competition ({bid_count} bids)")
+            
+            # Budget bonus
+            budget = project.get('budget', {})
+            if isinstance(budget, dict):
+                min_budget = budget.get('minimum', 0)
+                currency_code = project.get('currency', {}).get('code', 'USD')
+                
+                if self.currency_converter:
+                    min_usd = self.currency_converter.to_usd(min_budget, currency_code)
+                    if min_usd >= 500:
+                        score += 30
+                        reasons.append("💰 Premium budget")
+                    elif min_usd >= 250:
+                        score += 15
+                        reasons.append("💵 Good budget")
+            
+            # Elite bonus
+            if self.is_elite_project(project):
+                score += 20
+                reasons.append("🌟 Elite project")
+            
+            # Skill match bonus
+            match_score = self.calculate_skill_match(project)
+            if match_score > 0.8:
+                score += 20
+                reasons.append("🎯 Perfect skill match")
+            elif match_score > 0.5:
+                score += 10
+                reasons.append("✓ Good skill match")
+            
+            return score, ", ".join(reasons)
+            
+        except Exception as e:
+            logging.error(f"Error calculating priority: {e}")
+            return 0, "Error calculating priority"
+
+    def analyze_performance(self):
+        """Analyze and log performance metrics with filtering focus"""
+        if not self.config['performance']['track_analytics'] or self.bid_count == 0:
+            return
+        
+        logging.info("\n" + "="*60)
+        logging.info("📊 PERFORMANCE ANALYTICS - FILTERED BIDDING")
+        logging.info("="*60)
+        
+        # Filtering metrics
+        total_analyzed = self.filtered_projects_count + self.passed_filter_count
+        if total_analyzed > 0:
+            filter_pass_rate = (self.passed_filter_count / total_analyzed * 100)
+            logging.info(f"\nFiltering Stats:")
+            logging.info(f"  Projects analyzed: {total_analyzed}")
+            logging.info(f"  Passed filters: {self.passed_filter_count} ({filter_pass_rate:.1f}%)")
+            logging.info(f"  Filtered out: {self.filtered_projects_count}")
+        
+        # Overall metrics
+        win_rate = (self.wins_count / self.bid_count * 100) if self.bid_count > 0 else 0
+        elite_percentage = (self.elite_bid_count / self.bid_count * 100) if self.bid_count > 0 else 0
+        
+        logging.info(f"\nBidding Stats:")
+        logging.info(f"  Total Bids: {self.bid_count}")
+        logging.info(f"  Projects Won: {self.wins_count} ({win_rate:.1f}% win rate)")
+        logging.info(f"  Elite Projects: {self.elite_bid_count} ({elite_percentage:.1f}%)")
+        logging.info(f"  Bids Today: {self.bids_today}")
+        
+        # Skip reasons
+        total_skipped = sum(self.skipped_projects.values())
+        if total_skipped > 0:
+            logging.info(f"\nFiltered Projects by Reason: {total_skipped}")
+            for reason, count in sorted(self.skipped_projects.items(), key=lambda x: x[1], reverse=True):
+                if count > 0:
+                    percentage = (count / total_skipped * 100)
+                    logging.info(f"  {reason.replace('_', ' ').title()}: {count} ({percentage:.1f}%)")
+
+    def realtime_monitor_with_bidding(self):
+        """Monitor and bid only on filtered quality projects"""
+        logging.info("🚀 Starting Enhanced AutoWork Bot - FILTERED BIDDING MODE...")
+        logging.info(f"User ID: {self.user_id}")
+        logging.info(f"Filtering Mode: STRICT - Quality Projects Only")
+        logging.info(f"Quality Threshold: {self.config.get('quality_filters', {}).get('min_quality_score', 50)}")
+        logging.info(f"Smart Features: Enabled")
+        
+        error_count = 0
+        max_errors = self.config['monitoring']['max_consecutive_errors']
+        cycle_count = 0
+        
+        # Update Redis status
+        if self.redis_client:
+            self.redis_client.set('bot_status', 'Running - Filtered Quality Mode')
+            self.redis_client.set('bot_start_time', self.start_time.isoformat())
+        
+        while True:
+            try:
+                cycle_count += 1
+                
+                # Check daily limit
+                if self.bids_today >= self.config['monitoring']['daily_bid_limit']:
+                    logging.warning(f"Daily bid limit reached ({self.config['monitoring']['daily_bid_limit']})")
+                    hours_until_midnight = (24 - datetime.now().hour)
+                    logging.info(f"Waiting {hours_until_midnight} hours until midnight...")
+                    time.sleep(hours_until_midnight * 3600)
+                    continue
+                
+                # Fetch and process projects
+                projects = self.get_active_projects(limit=self.config['filtering']['max_projects_per_cycle'])
+                
+                if projects:
+                    logging.info(f"\n🔄 Cycle {cycle_count}: Analyzing {len(projects)} projects for quality")
+                    
+                    new_bids = 0
+                    projects_analyzed = 0
+                    quality_projects = 0
+                    
+                    # Process each project
+                    for project in projects:
+                        project_id = project.get("id")
+                        
+                        # Skip if already processed
+                        if project_id in self.processed_projects:
+                            continue
+                        
+                        projects_analyzed += 1
+                        self.filtered_projects_count += 1
+                        
+                        # Check if should bid (strict filtering)
+                        should_bid, reason = self.should_bid_on_project(project)
+                        
+                        if not should_bid:
+                            logging.debug(f"⏭️  Filtered out: {project.get('title', 'Unknown')[:40]}... - {reason}")
+                            self.processed_projects.add(project_id)
+                            continue
+                        
+                        quality_projects += 1
+                        
+                        # Place bid on quality project
+                        logging.info(f"\n{'='*60}")
+                        logging.info(f"✅ QUALITY PROJECT FOUND: {project.get('title', 'Unknown')[:50]}...")
+                        
+                        success = self.place_bid(project)
+                        
+                        if success:
+                            new_bids += 1
+                            
+                            # Smart delay based on priority
+                            priority_score, _ = self.calculate_bid_priority(project)
+                            if priority_score > 150:
+                                delay = 5  # Fast for high priority
+                            elif priority_score > 100:
+                                delay = 8
+                            else:
+                                delay = 10
+                            
+                            logging.info(f"⏳ Waiting {delay} seconds before next bid...")
+                            time.sleep(delay)
+                        
+                        # Stop if we've bid enough this cycle
+                        if new_bids >= 5:  # Max 5 quality bids per cycle
+                            logging.info("📊 Reached cycle bid limit (5 quality bids)")
+                            break
+                    
+                    # Log cycle summary
+                    if projects_analyzed > 0:
+                        quality_rate = (quality_projects / projects_analyzed * 100)
+                        logging.info(f"\n📊 Cycle Summary:")
+                        logging.info(f"   Projects analyzed: {projects_analyzed}")
+                        logging.info(f"   Quality projects found: {quality_projects} ({quality_rate:.1f}%)")
+                        logging.info(f"   Bids placed: {new_bids}")
+                        logging.info(f"   Filtered out: {projects_analyzed - quality_projects}")
+                    else:
+                        logging.info("No new projects to analyze")
+                    
+                    error_count = 0  # Reset on success
+                    
+                else:
+                    error_count += 1
+                    logging.warning(f"No projects fetched (error count: {error_count}/{max_errors})")
+                    
+                    if error_count >= max_errors:
+                        logging.error(f"Max errors reached. Waiting {self.config['monitoring']['error_retry_delay_seconds']} seconds...")
+                        time.sleep(self.config['monitoring']['error_retry_delay_seconds'])
+                        error_count = 0
+                
+                # Analyze performance periodically
+                if cycle_count % self.config['performance']['analyze_every_n_cycles'] == 0:
+                    self.analyze_performance()
+                
+                # Process contests periodically
+                if self.contests_enabled and cycle_count % 10 == 0:
+                    self.process_contests()
+                
+                # Save state
+                self.save_state_to_redis()
+                
+                # Determine wait time
+                current_hour = datetime.now().hour
+                if 2 <= current_hour <= 6:  # Late night
+                    wait_time = self.config['monitoring']['off_hours_interval']
+                elif 8 <= current_hour <= 22:  # Peak hours
+                    wait_time = self.config['monitoring']['peak_hours_interval']
+                else:
+                    wait_time = self.config['monitoring']['check_interval_seconds']
+                
+                # Show status
+                if self.bid_count > 0:
+                    win_rate = (self.wins_count / self.bid_count * 100)
+                    logging.info(f"\n📈 Status: {self.bid_count} bids | {win_rate:.1f}% wins | {self.passed_filter_count} quality projects found")
+                
+                logging.info(f"💤 Waiting {wait_time} seconds until next cycle...")
+                time.sleep(wait_time)
+                
+            except KeyboardInterrupt:
+                logging.info("\n⏹️  Bot stopped by user")
+                self.analyze_performance()
+                if self.redis_client:
+                    self.redis_client.set('bot_status', 'Stopped')
+                break
+            except Exception as e:
+                error_count += 1
+                logging.error(f"Error in monitoring loop: {e}")
+                import traceback
+                logging.error(f"Traceback: {traceback.format_exc()}")
+                
+                if self.redis_client:
+                    self.redis_client.set('last_error', str(e))
+                
+                if error_count >= max_errors:
+                    logging.error(f"Too many errors. Waiting {self.config['monitoring']['error_retry_delay_seconds']} seconds...")
+                    time.sleep(self.config['monitoring']['error_retry_delay_seconds'])
+                    error_count = 0
+                else:
+                    time.sleep(30)
+
+    def load_token(self) -> str:
+        """Load token from environment or .env file"""
+        token = os.environ.get('FREELANCER_OAUTH_TOKEN')
+        
+        if token:
+            return token.strip()
+        
+        # Try .env file
+        if os.path.exists('.env'):
+            try:
+                from dotenv import load_dotenv
+                load_dotenv()
+                token = os.environ.get('FREELANCER_OAUTH_TOKEN')
+                if token:
+                    return token.strip()
+            except ImportError:
+                with open('.env', 'r') as f:
+                    for line in f:
+                        if line.startswith('FREELANCER_OAUTH_TOKEN='):
+                            token = line.split('=', 1)[1].strip()
+                            if token:
+                                return token
+        
+        # Ask for token
+        print("Token not found in environment.")
+        token = input("Enter your Freelancer OAuth token: ").strip()
+        return token
+
+    def init_redis(self):
+        """Initialize Redis connection"""
+        try:
+            redis_url = os.environ.get('REDIS_URL', 'redis://localhost:6379')
+            client = redis.from_url(redis_url, decode_responses=True)
+            client.ping()
+            logging.info("✓ Redis connection established")
+            return client
+        except Exception as e:
+            logging.warning(f"Redis connection failed: {e}")
+            return None
+
+    def load_bid_messages(self) -> Dict:
+        """Load bid messages from JSON file"""
+        try:
+            with open('bid_messages.json', 'r') as f:
+                messages = json.load(f)
+                logging.info("✓ Loaded bid messages")
+                return messages
+        except Exception as e:
+            logging.warning(f"Could not load bid messages: {e}")
+            return {
+                "professional": ["I'm interested in your project and ready to start immediately."],
+                "friendly": ["Hi! I'd love to help with your project."],
+                "technical": ["I have the technical expertise needed for this project."]
+            }
+
+    def load_skills_map(self) -> Dict:
+        """Load skills mapping from JSON file"""
+        try:
+            with open('skills_map.json', 'r') as f:
+                skills = json.load(f)
+                logging.info("✓ Loaded skills map")
+                return skills
+        except Exception as e:
+            logging.warning(f"Could not load skills map: {e}")
+            return {}
+
+    def load_specializations(self) -> Dict:
+        """Load specializations from JSON file"""
+        try:
+            with open('specializations.json', 'r') as f:
+                specs = json.load(f)
+                logging.info("✓ Loaded specializations")
+                return specs
+        except Exception as e:
+            logging.warning(f"Could not load specializations: {e}")
+            return {}
+
+    def load_state_from_redis(self):
+        """Load bot state from Redis"""
+        if not self.redis_client:
+            return
+        
+        try:
+            # Load basic stats
+            self.bid_count = int(self.redis_client.get('bid_count') or 0)
+            self.bids_today = int(self.redis_client.get('bids_today') or 0)
+            self.wins_count = int(self.redis_client.get('wins_count') or 0)
+            self.elite_bid_count = int(self.redis_client.get('elite_bid_count') or 0)
+            
+            # Load processed projects
+            processed_data = self.redis_client.get('processed_projects')
+            if processed_data:
+                self.processed_projects = set(json.loads(processed_data))
+            
+            # Load skipped projects
+            skipped_data = self.redis_client.get('skipped_projects')
+            if skipped_data:
+                self.skipped_projects.update(json.loads(skipped_data))
+            
+            logging.info("✓ Loaded state from Redis")
+        except Exception as e:
+            logging.warning(f"Could not load state from Redis: {e}")
+
+    def save_state_to_redis(self):
+        """Save bot state to Redis"""
+        if not self.redis_client:
+            return
+        
+        try:
+            # Save basic stats
+            self.redis_client.set('bid_count', self.bid_count)
+            self.redis_client.set('bids_today', self.bids_today)
+            self.redis_client.set('wins_count', self.wins_count)
+            self.redis_client.set('elite_bid_count', self.elite_bid_count)
+            
+            # Save processed projects
+            self.redis_client.set('processed_projects', json.dumps(list(self.processed_projects)))
+            
+            # Save skipped projects
+            self.redis_client.set('skipped_projects', json.dumps(self.skipped_projects))
+            
+            # Save current time
+            self.redis_client.set('last_update', datetime.now().isoformat())
+        except Exception as e:
+            logging.warning(f"Could not save state to Redis: {e}")
+
+    def verify_token_on_startup(self) -> bool:
         """Verify token is valid before starting bot"""
         try:
             logging.info("Verifying token validity...")
@@ -190,8 +869,7 @@ class AutoWorkMinimal:
             # Test with user endpoint
             response = requests.get(
                 f"{self.api_base}/users/0.1/users/{self.user_id}",
-                headers=self.headers,
-                timeout=30
+                headers=self.headers
             )
             
             if response.status_code == 401:
@@ -220,1985 +898,345 @@ class AutoWorkMinimal:
             logging.error(f"Error verifying token: {e}")
             return False
 
-    def validate_api_response(self, response, endpoint_name="API"):
-        """Validate API response and handle errors gracefully"""
+    def validate_project_data(self, project: Dict) -> bool:
+        """Validate that project data is complete and valid"""
+        required_fields = ['id', 'title', 'description', 'budget', 'currency']
         
-        # Check response status
-        if response.status_code == 401:
-            error_msg = "Authentication failed - Token expired or invalid"
-            logging.error(f"{endpoint_name}: {error_msg}")
-            logging.error("Please generate a new token at: https://www.freelancer.com/api/docs/")
-            if self.redis_client:
-                self.redis_client.set('last_error', error_msg)
-                self.redis_client.set('bot_status', 'Error - Invalid Token')
-            return None
-        
-        if response.status_code == 429:
-            error_msg = "Rate limit exceeded - Too many requests"
-            logging.error(f"{endpoint_name}: {error_msg}")
-            if self.redis_client:
-                self.redis_client.set('last_error', error_msg)
-            return None
-        
-        if response.status_code != 200:
-            error_msg = f"HTTP {response.status_code} error"
-            logging.error(f"{endpoint_name}: {error_msg}")
-            logging.error(f"Response: {response.text[:500]}")
-            if self.redis_client:
-                self.redis_client.set('last_error', error_msg)
-            return None
-        
-        # Try to parse JSON
-        try:
-            data = response.json()
-        except json.JSONDecodeError as e:
-            logging.error(f"{endpoint_name}: Invalid JSON response - {e}")
-            logging.error(f"Raw response: {response.text[:500]}")
-            if self.redis_client:
-                self.redis_client.set('last_error', 'Invalid JSON response')
-            return None
-        
-        # Validate response structure
-        if not isinstance(data, dict):
-            logging.error(f"{endpoint_name}: Response is not a dictionary")
-            logging.error(f"Type: {type(data)}, Content: {str(data)[:500]}")
-            return None
-        
-        # Check for API errors in response
-        if data.get('status') == 'error':
-            error_msg = data.get('message', 'Unknown API error')
-            logging.error(f"{endpoint_name}: API Error - {error_msg}")
-            if self.redis_client:
-                self.redis_client.set('last_error', error_msg)
-            return None
-        
-        return data
-
-    def validate_project_data(self, project: Any) -> Optional[Dict]:
-        """Validate that project data is in expected format"""
-        if not isinstance(project, dict):
-            logging.warning(f"Invalid project data type: {type(project)}")
-            return None
-        
-        # Check required fields
-        required_fields = ['id', 'title', 'budget', 'bid_stats']
         for field in required_fields:
             if field not in project:
-                logging.warning(f"Missing required field '{field}' in project data")
-                return None
+                return False
         
-        # Validate budget structure
-        if not isinstance(project.get('budget'), dict):
-            logging.warning("Invalid budget structure")
-            return None
+        # Check budget structure
+        budget = project.get('budget', {})
+        if not isinstance(budget, dict):
+            return False
         
-        # Validate bid_stats structure
-        if not isinstance(project.get('bid_stats'), dict):
-            logging.warning("Invalid bid_stats structure")
-            return None
+        if 'minimum' not in budget:
+            return False
         
-        return project
+        return True
 
-    def load_config(self) -> Dict:
-        """Load configuration from file or use defaults"""
-        config_file = "bot_config.json"
-        
-        if os.path.exists(config_file):
-            try:
-                with open(config_file, 'r') as f:
-                    config = json.load(f)
-                    logging.info("✓ Loaded configuration from bot_config.json")
-                    return config
-            except Exception as e:
-                logging.error(f"Error loading config: {e}")
-        
-        # Default configuration with ULTRA-LENIENT settings for maximum bidding
-        return {
-            "bidding": {
-                "delivery_days": 3,
-                "express_delivery_days": 3,
-                "min_bid_delay_seconds": 5,
-                "bid_multiplier_regular": 1.0,
-                "bid_multiplier_elite": 1.0,
-                "default_bid_regular": 100,
-                "default_bid_elite": 150
-            },
-            "smart_bidding": {
-                "enabled": True,
-                "max_existing_bids": 2000,  # Very high limit
-                "early_bird_minutes": 60,
-                "instant_bid_threshold": 10,
-                "competitive_pricing": False,
-                "undercut_percentage": 1.0,
-                "min_profitable_budget": 5  # Ultra-low minimum
-            },
-            "client_filtering": {
-                "enabled": False,  # DISABLED - Allow all clients
-                "min_client_rating": 0.0,  # No minimum rating
-                "min_completion_rate": 0.0,  # No minimum completion rate
-                "min_projects_posted": 0,
-                "check_payment_verified": False,
-                "require_payment_method": False,
-                "require_deposit": False,
-                "require_identity_verified": False,
-                "skip_phone_email_only": False
-            },
-            "currency_filtering": {
-                "enabled": False,  # DISABLED - Allow all currencies
-                "inr_pkr_strict_filtering": False,  # Disabled
-                "inr_minimum_budget": 100.0,  # Very low
-                "pkr_minimum_budget": 500.0,  # Very low
-                "require_payment_verified_for_inr_pkr": False,
-                "require_identity_verified_for_inr_pkr": False,
-                "skip_phone_email_only_for_inr_pkr": False
-            },
-            "elite_projects": {
-                "auto_sign_nda": True,
-                "auto_sign_ip_agreement": True,
-                "track_elite_stats": True
-            },
-            "filtering": {
-                "max_projects_per_cycle": 50,
-                "skip_projects_with_bids_above": 2000,  # Very high limit
-                "portfolio_matching": False,  # Disabled
-                "min_skill_match_score": 0.0  # No skill match requirement
-            },
-            "monitoring": {
-                "check_interval_seconds": 15,
-                "peak_hours_interval": 15,
-                "off_hours_interval": 60,
-                "error_retry_delay_seconds": 300,
-                "max_consecutive_errors": 5,
-                "daily_bid_limit": 100
-            },
-            "performance": {
-                "track_analytics": True,
-                "ab_testing_enabled": True,
-                "analyze_every_n_cycles": 10
-            }
-        }
-
-    def load_specializations(self) -> Dict:
-        """Load specializations from file or use defaults"""
-        spec_file = "specializations.json"
-        
-        if os.path.exists(spec_file):
-            try:
-                with open(spec_file, 'r') as f:
-                    return json.load(f)
-            except:
-                pass
-        
-        # Default specializations - CUSTOMIZE THESE FOR YOUR SKILLS
-        return {
-            "web_scraping": {
-                "keywords": ["scrape", "scraping", "data extraction", "crawl", "spider", "beautifulsoup", "selenium"],
-                "success_rate": 0.85,
-                "min_budget": 100
-            },
-            "automation": {
-                "keywords": ["automate", "automation", "bot", "script", "automatic", "scheduled"],
-                "success_rate": 0.80,
-                "min_budget": 150
-            },
-            "api_integration": {
-                "keywords": ["api", "integration", "rest", "webhook", "endpoint", "json", "xml"],
-                "success_rate": 0.75,
-                "min_budget": 200
-            },
-            "python": {
-                "keywords": ["python", "django", "flask", "pandas", "numpy", "fastapi"],
-                "success_rate": 0.82,
-                "min_budget": 100
-            },
-            "data_entry": {
-                "keywords": ["data entry", "typing", "excel", "spreadsheet", "data processing"],
-                "success_rate": 0.70,
-                "min_budget": 30
-            }
-        }
-
-    def load_state_from_redis(self):
-        """Load saved state including performance metrics"""
-        if self.redis_client:
-            try:
-                self.bid_count = int(self.redis_client.get('total_bids') or 0)
-                self.wins_count = int(self.redis_client.get('wins_count') or 0)
-                self.bids_today = int(self.redis_client.get('bids_today') or 0)
-                self.elite_bid_count = int(self.redis_client.get('elite_bids') or 0)
-                
-                # Load processed projects
-                processed = self.redis_client.get('processed_projects')
-                if processed:
-                    self.processed_projects = set(json.loads(processed))
-                
-                # Load NDA/IP signed projects
-                nda_signed = self.redis_client.get('nda_signed_projects')
-                if nda_signed:
-                    self.nda_signed_projects = set(json.loads(nda_signed))
-                    
-                ip_signed = self.redis_client.get('ip_signed_projects')
-                if ip_signed:
-                    self.ip_signed_projects = set(json.loads(ip_signed))
-                
-                # Load performance data
-                perf_data = self.redis_client.get('performance_data')
-                if perf_data:
-                    self.performance_data = json.loads(perf_data)
-                
-                # Load skip data
-                skip_data = self.redis_client.get('skipped_projects')
-                if skip_data:
-                    self.skipped_projects = json.loads(skip_data)
-                
-                # Check if we need to reset daily counter
-                last_reset = self.redis_client.get('last_daily_reset')
-                if last_reset:
-                    last_reset_date = datetime.fromisoformat(last_reset).date()
-                    if last_reset_date < self.today_date:
-                        self.reset_daily_stats()
-                else:
-                    self.reset_daily_stats()
-                
-                win_rate = (self.wins_count / self.bid_count * 100) if self.bid_count > 0 else 0
-                logging.info(f"✓ Loaded state: {self.bid_count} bids, {self.wins_count} wins ({win_rate:.1f}% win rate)")
-                
-            except Exception as e:
-                logging.error(f"Error loading state: {e}")
-
-    def save_state_to_redis(self):
-        """Save enhanced state with analytics"""
-        if self.redis_client:
-            try:
-                self.redis_client.set('total_bids', self.bid_count)
-                self.redis_client.set('wins_count', self.wins_count)
-                self.redis_client.set('bids_today', self.bids_today)
-                self.redis_client.set('elite_bids', self.elite_bid_count)
-                self.redis_client.set('processed_projects_count', len(self.processed_projects))
-                
-                # Save processed projects (limit to last 1000)
-                recent_projects = list(self.processed_projects)[-1000:]
-                self.redis_client.set('processed_projects', json.dumps(recent_projects))
-                
-                # Save NDA/IP signed projects
-                self.redis_client.set('nda_signed_projects', json.dumps(list(self.nda_signed_projects)))
-                self.redis_client.set('ip_signed_projects', json.dumps(list(self.ip_signed_projects)))
-                
-                # Save performance data
-                self.redis_client.set('performance_data', json.dumps(self.performance_data))
-                
-                # Save skip reasons
-                self.redis_client.set('skipped_projects', json.dumps(self.skipped_projects))
-                
-                # Save status
-                self.redis_client.set('bot_status', 'Running - Ultra-Lenient Minimum Budget Mode')
-                self.redis_client.set('last_update', datetime.now().isoformat())
-                
-                # Calculate and save metrics
-                uptime = datetime.now() - self.start_time
-                uptime_str = str(uptime).split('.')[0]
-                self.redis_client.set('bot_uptime', uptime_str)
-                
-                if self.bid_count > 0:
-                    win_rate = (self.wins_count / self.bid_count) * 100
-                    self.redis_client.set('win_rate', win_rate)
-                    self.redis_client.set('success_rate', win_rate)
-                    
-                    elite_percentage = (self.elite_bid_count / self.bid_count * 100)
-                    self.redis_client.set('elite_percentage', elite_percentage)
-                
-                # Save contest stats if enabled
-                if self.contests_enabled and self.contest_handler:
-                    contest_summary = self.contest_handler.get_contest_summary()
-                    self.redis_client.set('contests_entered', contest_summary['total_entered'])
-                    self.redis_client.set('contests_won', contest_summary['total_wins'])
-                    self.redis_client.set('contest_prize_money', contest_summary['total_prize_money'])
-                
-            except Exception as e:
-                logging.error(f"Error saving state: {e}")
-
-    def reset_daily_stats(self):
-        """Reset daily statistics"""
-        self.bids_today = 0
-        self.today_date = datetime.now().date()
-        if self.redis_client:
-            self.redis_client.set('bids_today', 0)
-            self.redis_client.set('last_daily_reset', datetime.now().isoformat())
-
-    def load_token(self) -> str:
-        """Load token from environment variable or .env file"""
-        token = os.environ.get('FREELANCER_OAUTH_TOKEN')
-        
-        if token:
-            logging.info("✓ Token loaded from environment variable")
-            return token.strip()
-        
-        if os.path.exists('.env'):
-            try:
-                from dotenv import load_dotenv
-                load_dotenv()
-                token = os.environ.get('FREELANCER_OAUTH_TOKEN')
-                if token:
-                    logging.info("✓ Token loaded from .env file")
-                    return token.strip()
-            except ImportError:
-                with open('.env', 'r') as f:
-                    for line in f:
-                        line = line.strip()
-                        if line.startswith('FREELANCER_OAUTH_TOKEN='):
-                            token = line.split('=', 1)[1].strip()
-                            if token:
-                                logging.info("✓ Token loaded from .env file")
-                                return token
-        
-        if os.environ.get('RENDER') or not sys.stdin.isatty():
-            raise ValueError(
-                "FREELANCER_OAUTH_TOKEN not found! "
-                "Please set it as an environment variable in Render dashboard."
+    def analyze_client(self, employer_id: int) -> Dict:
+        """Analyze client for quality indicators"""
+        try:
+            response = requests.get(
+                f"{self.api_base}/users/0.1/users/{employer_id}",
+                headers=self.headers
             )
-        
-        logging.warning("Token not found in environment or .env file.")
-        token = input("Enter your Freelancer OAuth token: ").strip()
-        
-        try:
-            with open('.env', 'w') as f:
-                f.write(f"FREELANCER_OAUTH_TOKEN={token}\n")
-            logging.info("✓ Token saved to .env file")
-        except Exception as e:
-            logging.error(f"Error saving token: {e}")
-        
-        return token
-
-    def load_bid_messages(self) -> Dict[str, List[str]]:
-        """Load categorized bid messages for A/B testing"""
-        messages_file = "bid_messages_enhanced.json"
-        
-        if os.path.exists(messages_file):
-            try:
-                with open(messages_file, 'r') as f:
-                    messages = json.load(f)
-                    logging.info(f"✓ Loaded enhanced bid messages from file")
-                    return messages
-            except Exception as e:
-                logging.error(f"Error loading bid messages: {e}")
-        
-        # Try standard bid messages file
-        standard_file = "bid_messages.json"
-        if os.path.exists(standard_file):
-            try:
-                with open(standard_file, 'r') as f:
-                    messages = json.load(f)
-                    # Check if it's already in the right format
-                    if isinstance(messages, dict) and 'professional' in messages:
-                        return messages
-                    # Convert list to categorized format
-                    elif isinstance(messages, list):
-                        return {
-                            "professional": messages[:len(messages)//4],
-                            "friendly": messages[len(messages)//4:len(messages)//2],
-                            "technical": messages[len(messages)//2:3*len(messages)//4],
-                            "value_focused": messages[3*len(messages)//4:]
-                        }
-            except:
-                pass
-        
-        # Default categorized messages with 3-day delivery
-        return {
-            "professional": [
-                "Dear Client,\n\nI have carefully reviewed your project requirements for {project_title}. With my expertise in {skills}, I can deliver high-quality results within 3 days.\n\nI have successfully completed similar projects with excellent client feedback. I would be happy to discuss your specific needs in detail.\n\nBest regards."
-            ],
-            "friendly": [
-                "Hi there! 👋\n\nYour project for {project_title} caught my eye - it's exactly the kind of work I love doing! I've got solid experience with {skills} and can start right away.\n\nI'll make sure you get exactly what you need within 3 days. Let's chat about how I can help make your project a success! 😊"
-            ],
-            "technical": [
-                "Hello,\n\nI've analyzed your requirements for {project_title}. Technical approach:\n- I'll use {skills} to implement a robust solution\n- Deliverables will include clean code, documentation, and testing\n- Timeline: 3 days with daily progress updates\n\nI'm ready to start immediately."
-            ],
-            "value_focused": [
-                "Hi! I see you need help with {project_title}.\n\nHere's what you'll get:\n✓ Expert {skills} implementation\n✓ Delivery in just 3 days\n✓ Unlimited revisions until you're 100% satisfied\n✓ Post-delivery support\n\nMy goal is to exceed your expectations while staying within budget. Let's discuss!"
-            ]
-        }
-
-    def load_skills_map(self) -> Dict[str, str]:
-        """Load skills mapping"""
-        skills_file = "skills_map.json"
-        
-        if os.path.exists(skills_file):
-            try:
-                with open(skills_file, 'r') as f:
-                    return json.load(f)
-            except Exception as e:
-                logging.error(f"Error loading skills map: {e}")
-        
-        # Default skills map
-        return {
-            "3": "PHP",
-            "9": "Data Entry",
-            "13": "Python",
-            "17": "Web Scraping",
-            "22": "Excel",
-            "323": "React.js",
-            "335": "Node.js"
-        }
-
-    def analyze_client(self, employer_id: int) -> Dict[str, Any]:
-        """Analyze client history and reputation with comprehensive verification checks"""
-        try:
-            # Get client details from Freelancer API
-            endpoint = f"{self.api_base}/users/0.1/users/{employer_id}"
-            response = requests.get(endpoint, headers=self.headers, timeout=30)
             
             if response.status_code != 200:
-                logging.warning(f"Could not fetch client details for {employer_id}: {response.status_code}")
-                return {'is_good_client': False, 'reason': 'Could not fetch client details'}
+                return {'is_good_client': False, 'reason': 'Could not fetch client data'}
             
             data = response.json()
-            user_data = data.get('result', {})
+            user = data.get('result', {})
             
-            # Initialize verification results
-            verification_results = {
-                'is_good_client': True,
-                'reasons': [],
-                'client_name': user_data.get('username', 'Unknown'),
-                'verification_status': {}
-            }
-            
-            # Check payment method verification
-            if self.config['client_filtering']['require_payment_method']:
-                payment_verified = user_data.get('payment_verified', False)
-                verification_results['verification_status']['payment_method'] = payment_verified
-                
-                if not payment_verified:
-                    verification_results['is_good_client'] = False
-                    verification_results['reasons'].append('Payment method not verified')
-            
-            # Check for deposits (optional)
-            if self.config['client_filtering']['require_deposit']:
-                has_deposit = user_data.get('has_deposit', False)
-                verification_results['verification_status']['has_deposit'] = has_deposit
-                
-                if not has_deposit:
-                    verification_results['is_good_client'] = False
-                    verification_results['reasons'].append('No deposit made')
-            
-            # Check identity verification
-            if self.config['client_filtering']['require_identity_verified']:
-                identity_verified = user_data.get('identity_verified', False)
-                verification_results['verification_status']['identity_verified'] = identity_verified
-                
-                if not identity_verified:
-                    verification_results['is_good_client'] = False
-                    verification_results['reasons'].append('Identity not verified')
-            
-            # Check if only phone/email verified (skip these)
-            if self.config['client_filtering']['skip_phone_email_only']:
-                phone_verified = user_data.get('phone_verified', False)
-                email_verified = user_data.get('email_verified', False)
-                payment_verified = user_data.get('payment_verified', False)
-                identity_verified = user_data.get('identity_verified', False)
-                
-                verification_results['verification_status']['phone_verified'] = phone_verified
-                verification_results['verification_status']['email_verified'] = email_verified
-                
-                # Skip if only phone/email verified but no payment/identity verification
-                if (phone_verified or email_verified) and not (payment_verified or identity_verified):
-                    verification_results['is_good_client'] = False
-                    verification_results['reasons'].append('Only phone/email verified - insufficient verification')
-            
-            # Check client rating
-            min_rating = self.config['client_filtering']['min_client_rating']
-            client_rating = user_data.get('rating', 0)
-            verification_results['verification_status']['rating'] = client_rating
-            
-            if client_rating < min_rating:
-                verification_results['is_good_client'] = False
-                verification_results['reasons'].append(f'Client rating too low ({client_rating} < {min_rating})')
-            
-            # Check completion rate
-            min_completion_rate = self.config['client_filtering']['min_completion_rate']
-            completion_rate = user_data.get('completion_rate', 0)
-            verification_results['verification_status']['completion_rate'] = completion_rate
-            
-            if completion_rate < min_completion_rate:
-                verification_results['is_good_client'] = False
-                verification_results['reasons'].append(f'Completion rate too low ({completion_rate:.1%} < {min_completion_rate:.1%})')
-            
-            # Check number of projects posted
-            min_projects = self.config['client_filtering']['min_projects_posted']
-            projects_posted = user_data.get('projects_posted', 0)
-            verification_results['verification_status']['projects_posted'] = projects_posted
-            
-            if projects_posted < min_projects:
-                verification_results['is_good_client'] = False
-                verification_results['reasons'].append(f'Too few projects posted ({projects_posted} < {min_projects})')
-            
-            # Log verification results
-            if verification_results['is_good_client']:
-                logging.info(f"✅ Client {verification_results['client_name']} passed verification checks")
-            else:
-                logging.warning(f"❌ Client {verification_results['client_name']} failed verification: {', '.join(verification_results['reasons'])}")
-            
-            return verification_results
-            
-        except Exception as e:
-            logging.error(f"Error analyzing client {employer_id}: {e}")
-            return {'is_good_client': False, 'reason': f'Error analyzing client: {str(e)}'}
-
-    def analyze_client_for_inr_pkr(self, employer_id: int) -> Dict[str, Any]:
-        """Analyze client with strict verification requirements for INR/PKR currencies"""
-        try:
-            # Get client details from Freelancer API
-            endpoint = f"{self.api_base}/users/0.1/users/{employer_id}"
-            response = requests.get(endpoint, headers=self.headers, timeout=30)
-            
-            if response.status_code != 200:
-                logging.warning(f"Could not fetch client details for {employer_id}: {response.status_code}")
-                return {'is_good_client': False, 'reason': 'Could not fetch client details'}
-            
-            data = response.json()
-            user_data = data.get('result', {})
-            
-            # Initialize verification results for strict INR/PKR filtering
-            verification_results = {
-                'is_good_client': True,
-                'reasons': [],
-                'client_name': user_data.get('username', 'Unknown'),
-                'verification_status': {},
-                'strict_check': True
-            }
-            
-            currency_config = self.config.get('currency_filtering', {})
-            
-            # STRICT CHECK: Payment method verification (REQUIRED for INR/PKR)
-            if currency_config.get('require_payment_verified_for_inr_pkr', True):
-                payment_verified = user_data.get('payment_verified', False)
-                verification_results['verification_status']['payment_method'] = payment_verified
-                
-                if not payment_verified:
-                    verification_results['is_good_client'] = False
-                    verification_results['reasons'].append('Payment method verification REQUIRED for INR/PKR projects')
-            
-            # STRICT CHECK: Identity verification (REQUIRED for INR/PKR)
-            if currency_config.get('require_identity_verified_for_inr_pkr', True):
-                identity_verified = user_data.get('identity_verified', False)
-                verification_results['verification_status']['identity_verified'] = identity_verified
-                
-                if not identity_verified:
-                    verification_results['is_good_client'] = False
-                    verification_results['reasons'].append('Identity verification REQUIRED for INR/PKR projects')
-            
-            # STRICT CHECK: Skip if only phone/email verified (REQUIRED for INR/PKR)
-            if currency_config.get('skip_phone_email_only_for_inr_pkr', True):
-                phone_verified = user_data.get('phone_verified', False)
-                email_verified = user_data.get('email_verified', False)
-                payment_verified = user_data.get('payment_verified', False)
-                identity_verified = user_data.get('identity_verified', False)
-                
-                verification_results['verification_status']['phone_verified'] = phone_verified
-                verification_results['verification_status']['email_verified'] = email_verified
-                
-                # Skip if only phone/email verified but no payment/identity verification
-                if (phone_verified or email_verified) and not (payment_verified or identity_verified):
-                    verification_results['is_good_client'] = False
-                    verification_results['reasons'].append('Only phone/email verified - insufficient verification for INR/PKR projects')
-            
-            # Log strict verification results
-            if verification_results['is_good_client']:
-                logging.info(f"✅ Client {verification_results['client_name']} passed STRICT INR/PKR verification checks")
-            else:
-                logging.warning(f"❌ Client {verification_results['client_name']} failed STRICT INR/PKR verification: {', '.join(verification_results['reasons'])}")
-            
-            return verification_results
-            
-        except Exception as e:
-            logging.error(f"Error analyzing client for INR/PKR {employer_id}: {e}")
-            return {'is_good_client': False, 'reason': f'Error analyzing client for INR/PKR: {str(e)}'}
-
-    def calculate_bid_priority(self, project: Dict) -> Tuple[int, str]:
-        """Calculate priority score with premium boost"""
-        try:
-            # Validate project data first
-            if not self.validate_project_data(project):
-                return 0, "Invalid project data"
-            
-            score = 100
+            # Basic checks
+            is_good = True
             reasons = []
             
-            # PREMIUM BOOST - Add quality score if premium mode
-            if self.premium_mode and self.premium_filter:
-                is_premium, quality_score, factors = self.premium_filter.is_premium_project(project)
-                if is_premium:
-                    score += quality_score  # Add quality score (0-100)
-                    reasons.append(f"⭐ Premium project (quality: {quality_score})")
-                    
-                    # Additional boost for very high quality
-                    if quality_score >= 80:
-                        score += 50
-                        reasons.append("💎 Exceptional quality")
-                    elif quality_score >= 70:
-                        score += 30
-                        reasons.append("✨ High quality")
+            # Payment verification
+            if not user.get('status', {}).get('payment_verified', False):
+                is_good = False
+                reasons.append("Payment not verified")
             
-            # Time since posted
-            try:
-                time_submitted = project.get('time_submitted', '')
-                if time_submitted:
-                    time_posted = datetime.fromisoformat(time_submitted.replace('Z', '+00:00'))
-                    minutes_ago = (datetime.now(time_posted.tzinfo) - time_posted).total_seconds() / 60
-                else:
-                    minutes_ago = 999
-            except Exception as e:
-                logging.debug(f"Error parsing time: {e}")
-                minutes_ago = 999
+            # Rating check (if available)
+            rating = user.get('rating', 0)
+            if rating > 0 and rating < 4.0:
+                is_good = False
+                reasons.append(f"Low rating ({rating})")
             
-            if minutes_ago < 5:
-                score += 50
-                reasons.append("🔥 Just posted")
-            elif minutes_ago < self.config['smart_bidding']['early_bird_minutes']:
-                score += 30
-                reasons.append("⏰ Early bird")
-            elif minutes_ago > 60:
-                score -= 20
-                reasons.append("⏳ Posted over 1 hour ago")
+            return {
+                'is_good_client': is_good,
+                'reason': '; '.join(reasons) if reasons else 'Good client',
+                'rating': rating,
+                'payment_verified': user.get('status', {}).get('payment_verified', False)
+            }
             
-            # Bid count
-            bid_stats = project.get('bid_stats', {})
-            if isinstance(bid_stats, dict):
-                bid_count = bid_stats.get('bid_count', 0)
-            else:
-                bid_count = 0
+        except Exception as e:
+            logging.warning(f"Error analyzing client {employer_id}: {e}")
+            return {'is_good_client': True, 'reason': 'Analysis failed'}
+
+    def analyze_client_for_inr_pkr(self, employer_id: int) -> Dict:
+        """Special client analysis for INR projects - targets clients without payment verification"""
+        try:
+            response = requests.get(
+                f"{self.api_base}/users/0.1/users/{employer_id}",
+                headers=self.headers
+            )
             
-            if bid_count < self.config['smart_bidding']['instant_bid_threshold']:
-                score += 40
-                reasons.append(f"🎯 Only {bid_count} bids")
-            elif bid_count < 10:
-                score += 20
-                reasons.append(f"👍 Low competition ({bid_count} bids)")
-            elif bid_count > self.config['smart_bidding']['max_existing_bids']:
-                score -= 50
-                reasons.append(f"❌ Too many bids ({bid_count})")
+            if response.status_code != 200:
+                return {'is_good_client': False, 'reason': 'Could not fetch client data'}
             
-            # Budget analysis
+            data = response.json()
+            user = data.get('result', {})
+            status = user.get('status', {})
+            
+            # Check if Indian project filters are enabled
+            indian_filters = self.config.get('currency_filtering', {}).get('indian_project_filters', {})
+            if not indian_filters.get('enabled', False):
+                return {'is_good_client': True, 'reason': 'Indian filters disabled'}
+            
+            # For Indian projects, we want clients WITHOUT payment verification
+            if indian_filters.get('skip_payment_verified_clients', True):
+                if status.get('payment_verified', False):
+                    return {
+                        'is_good_client': False, 
+                        'reason': 'Payment verified (we want unverified clients for INR projects)'
+                    }
+            
+            # Check for deposit made
+            if indian_filters.get('skip_deposit_made_clients', True):
+                if status.get('deposit_made', False):
+                    return {
+                        'is_good_client': False, 
+                        'reason': 'Deposit made (we want clients without deposits for INR projects)'
+                    }
+            
+            # Check for payment method
+            if indian_filters.get('require_no_payment_method', True):
+                if status.get('payment_method_verified', False):
+                    return {
+                        'is_good_client': False, 
+                        'reason': 'Payment method verified (we want clients without payment methods for INR projects)'
+                    }
+            
+            # Additional checks for safety
+            rating = user.get('rating', 0)
+            if rating > 0 and rating < 3.0:  # Very low rating threshold for INR projects
+                return {'is_good_client': False, 'reason': f'Very low rating ({rating})'}
+            
+            return {
+                'is_good_client': True,
+                'reason': 'Suitable for INR project (no payment verification, no deposit, no payment method)',
+                'rating': rating,
+                'payment_verified': status.get('payment_verified', False),
+                'deposit_made': status.get('deposit_made', False),
+                'payment_method_verified': status.get('payment_method_verified', False)
+            }
+            
+        except Exception as e:
+            logging.warning(f"Error in INR client analysis: {e}")
+            return {'is_good_client': False, 'reason': 'Analysis failed'}
+
+    def should_bid_on_indian_project(self, project: Dict) -> Tuple[bool, str]:
+        """Special filtering for Indian projects with specific requirements"""
+        try:
+            currency_code = project.get('currency', {}).get('code', 'USD')
+            if currency_code != 'INR':
+                return True, "Not INR project"
+            
+            indian_filters = self.config.get('currency_filtering', {}).get('indian_project_filters', {})
+            if not indian_filters.get('enabled', False):
+                return True, "Indian filters disabled"
+            
+            # Check minimum budget
             budget = project.get('budget', {})
             if isinstance(budget, dict):
                 min_budget = float(budget.get('minimum', 0))
-                currency_code = project.get('currency', {}).get('code', 'USD')
+                min_required = indian_filters.get('min_inr_budget', 15000.0)
                 
-                # Convert to USD for comparison
-                if self.currency_converter:
-                    min_budget_usd = self.currency_converter.to_usd(min_budget, currency_code)
-                else:
-                    min_budget_usd = min_budget
-            else:
-                min_budget = 0
-                min_budget_usd = 0
+                if min_budget < min_required:
+                    reason = f"Budget too low (₹{min_budget} < ₹{min_required})"
+                    if indian_filters.get('log_filtered_projects', True):
+                        logging.info(f"🇮🇳 INR Project Filtered: {project.get('title', 'Unknown')[:50]}... - {reason}")
+                    return False, reason
             
-            # Premium budget tiers
-            if self.premium_mode:
-                if min_budget_usd >= 2000:
-                    score += 40
-                    reasons.append("💰 Enterprise budget")
-                elif min_budget_usd >= 1000:
-                    score += 30
-                    reasons.append("💵 Premium budget")
-                elif min_budget_usd >= 500:
-                    score += 20
-                    reasons.append("💴 Good budget")
-            else:
-                # Standard budget scoring
-                if min_budget_usd >= 500:
-                    score += 30
-                    reasons.append("💰 High budget")
-                elif min_budget_usd >= 250:
-                    score += 15
-                    reasons.append("💵 Good budget")
-                elif min_budget_usd < self.config['smart_bidding']['min_profitable_budget']:
-                    score -= 40
-                    reasons.append("💸 Low budget")
+            # Check client requirements
+            employer_id = project.get('owner_id')
+            if employer_id:
+                client_analysis = self.analyze_client_for_inr_pkr(employer_id)
+                if not client_analysis.get('is_good_client', True):
+                    reason = f"Client not suitable: {client_analysis.get('reason', 'Unknown')}"
+                    if indian_filters.get('log_filtered_projects', True):
+                        logging.info(f"🇮🇳 INR Project Filtered: {project.get('title', 'Unknown')[:50]}... - {reason}")
+                    return False, reason
             
-            # Skills match
-            if self.config['filtering']['portfolio_matching']:
-                match_score = self.calculate_skill_match(project)
-                if match_score > 0.8:
-                    score += 25
-                    reasons.append("🎯 Perfect skill match")
-                elif match_score > 0.6:
-                    score += 10
-                    reasons.append("✓ Good skill match")
-            
-            # Urgent projects
-            upgrades = project.get('upgrades', {})
-            if isinstance(upgrades, dict) and upgrades.get('urgent', False):
-                score += 20
-                reasons.append("🚨 Urgent")
-            
-            # Elite project bonus
-            if self.is_elite_project(project):
-                score += 10
-                reasons.append("🌟 Elite project")
-            
-            # Long-term project bonus
-            description = project.get('description', '').lower()
-            if any(term in description for term in ['long term', 'ongoing', 'full time', 'permanent']):
-                score += 30
-                reasons.append("📅 Long-term opportunity")
-            
-            return score, ", ".join(reasons)
+            return True, "Indian project passed all filters"
             
         except Exception as e:
-            logging.error(f"Error calculating priority: {e}")
-            return 0, "Error calculating priority"
+            logging.error(f"Error in Indian project filtering: {e}")
+            return False, f"Error: {str(e)}"
 
     def calculate_skill_match(self, project: Dict) -> float:
-        """Calculate how well project matches our specializations"""
-        try:
-            project_title = str(project.get('title', '')).lower()
-            project_description = str(project.get('description', '')).lower()
-            full_text = project_title + ' ' + project_description
-            
-            best_match = 0
-            
-            for spec_name, spec_data in self.specializations.items():
-                if not isinstance(spec_data, dict):
-                    continue
-                    
-                keywords = spec_data.get('keywords', [])
-                if not keywords:
-                    continue
-                    
-                matches = sum(1 for keyword in keywords if keyword in full_text)
-                
-                if matches > 0:
-                    success_rate = spec_data.get('success_rate', 0.5)
-                    match_score = (matches / len(keywords)) * success_rate
-                    best_match = max(best_match, match_score)
-            
-            return best_match
-            
-        except Exception as e:
-            logging.debug(f"Error calculating skill match: {e}")
+        """Calculate skill match score between project and our skills"""
+        project_skills = [job.get('name', '').lower() for job in project.get('jobs', [])]
+        
+        if not project_skills:
             return 0.0
-
-    def calculate_competitive_bid(self, project: Dict, is_elite: bool = False) -> float:
-        """Calculate bid at minimum budget (modified for minimum bidding strategy)"""
-        try:
-            budget = project.get('budget', {})
-            if not isinstance(budget, dict):
-                budget = {}
-            
-            min_budget = float(budget.get('minimum', 0))
-            
-            # MODIFICATION: Always bid at minimum budget
-            # This is the key change - we simply return the minimum budget
-            if min_budget > 0:
-                logging.info(f"   💰 Bidding at minimum: ${min_budget}")
-                return min_budget
-            
-            # Fallback to default if no minimum specified
-            return self.config['bidding']['default_bid_regular']
-            
-        except Exception as e:
-            logging.error(f"Error calculating bid: {e}")
-            return self.config['bidding']['default_bid_regular']
-
-    def calculate_bid_amount(self, budget: Dict, is_elite: bool = False) -> float:
-        """Simple bid calculation - always use minimum"""
-        try:
-            if isinstance(budget, dict) and budget.get("minimum"):
-                min_amount = float(budget["minimum"])
-                # MODIFICATION: Always return minimum amount
-                return min_amount
-            
-            # Fallback to configured default
-            return self.config['bidding']['default_bid_elite'] if is_elite else self.config['bidding']['default_bid_regular']
-            
-        except Exception as e:
-            logging.error(f"Error calculating bid amount: {e}")
-            return self.config['bidding']['default_bid_regular']
-
-    def select_bid_message(self, project: Dict, is_elite: bool = False) -> str:
-        """Select bid message with premium template support"""
-        try:
-            # Check if this is a premium project
-            if self.premium_mode and self.premium_filter:
-                is_premium, quality_score, factors = self.premium_filter.is_premium_project(project)
-                
-                # Use premium template for high-quality projects
-                if is_premium and quality_score >= 70:
-                    # Get premium template
-                    user_info = {
-                        'name': os.environ.get('FREELANCER_NAME', 'Professional Developer'),
-                        'experience_years': os.environ.get('EXPERIENCE_YEARS', '5'),
-                        'portfolio_link': os.environ.get('PORTFOLIO_URL', 'portfolio.example.com'),
-                        'github_link': os.environ.get('GITHUB_URL', 'github.com/username')
-                    }
-                    
-                    premium_message = self.premium_filter.get_premium_bid_template(project, user_info)
-                    
-                    # Track premium message usage
-                    self.message_variants['premium'] += 1
-                    if self.redis_client:
-                        self.redis_client.hincrby('message_variants', 'premium', 1)
-                    
-                    logging.info("   📝 Using premium bid template")
-                    return premium_message
-            
-            # Check for category-specific premium messages
-            if self.premium_bid_messages:
-                # Determine project category
-                category = self._determine_project_category(project)
-                if category in self.premium_bid_messages:
-                    messages = []
-                    for subcategory in self.premium_bid_messages[category].values():
-                        messages.extend(subcategory)
-                    
-                    if messages:
-                        import random
-                        message_template = random.choice(messages)
-                        
-                        # Customize the message
-                        project_skills = self._get_project_skills(project)
-                        skills_text = ", ".join(project_skills[:2]) if project_skills else "relevant technologies"
-                        delivery_days = 3  # ALWAYS 3 DAYS
-                        project_title = project.get('title', 'your project')[:50]
-                        
-                        message = message_template.format(
-                            project_title=project_title,
-                            skills=skills_text,
-                            days=delivery_days
-                        )
-                        
-                        logging.info(f"   📝 Using {category} premium template")
-                        return message
-            
-            # Fall back to standard message selection
-            if not self.config['performance']['ab_testing_enabled']:
-                messages = self.bid_messages.get('professional', ["Default message"])
-                message_template = messages[0] if messages else "Default message"
-            else:
-                # A/B testing logic
-                variant_names = list(self.message_variants.keys())
-                if 'premium' in variant_names:
-                    variant_names.remove('premium')  # Don't use premium in regular rotation
-                
-                total_uses = sum(self.message_variants[v] for v in variant_names)
-                variant_index = total_uses % len(variant_names)
-                selected_variant = variant_names[variant_index]
-                
-                self.message_variants[selected_variant] += 1
-                
-                messages = self.bid_messages.get(selected_variant, self.bid_messages.get('professional', ["Default"]))
-                message_template = messages[0] if messages else "Default message"
-                
-                if self.redis_client:
-                    self.redis_client.hincrby('message_variants', selected_variant, 1)
-            
-            # Customize message
-            project_skills = self._get_project_skills(project)
-            skills_text = ", ".join(project_skills[:2]) if project_skills else "relevant technologies"
-            delivery_days = 3  # ALWAYS 3 DAYS
-            project_title = project.get('title', 'your project')[:50]
-            
-            message = message_template.format(
-                project_title=project_title,
-                skills=skills_text,
-                days=delivery_days
-            )
-            
-            # Add NDA/IP note if needed
-            if is_elite:
-                upgrades = project.get('upgrades', {})
-                if isinstance(upgrades, dict):
-                    if upgrades.get('NDA', False) or upgrades.get('ip_contract', False):
-                        message += "\n\nI understand this project requires confidentiality agreements and I'm ready to sign any necessary NDA/IP documents."
-            
-            return message
-            
-        except Exception as e:
-            logging.error(f"Error selecting bid message: {e}")
-            return "I am interested in your project and have the skills needed to complete it successfully. I can deliver within 3 days. Let's discuss the details."
-    
-    def _determine_project_category(self, project: Dict) -> str:
-        """Determine project category based on skills and title"""
-        # This is a simplified version - you can make it more sophisticated
-        title = project.get('title', '').lower()
-        skills = [job.get('name', '').lower() for job in project.get('jobs', [])]
         
-        # Check for specific categories
-        if any(word in title or any(word in skill for skill in skills) for word in ['web', 'website', 'frontend', 'backend']):
-            return 'web_development'
-        elif any(word in title or any(word in skill for skill in skills) for word in ['mobile', 'android', 'ios', 'app']):
-            return 'mobile_development'
-        elif any(word in title or any(word in skill for skill in skills) for word in ['blockchain', 'crypto', 'smart contract']):
-            return 'blockchain'
-        elif any(word in title or any(word in skill for skill in skills) for word in ['ai', 'ml', 'machine learning', 'artificial intelligence']):
-            return 'ai_ml'
+        # Our skills from specializations
+        our_skills = []
+        for category, skills in self.specializations.items():
+            if isinstance(skills, list):
+                our_skills.extend([skill.lower() for skill in skills])
         
-        return 'general'
-    
-    def _get_project_skills(self, project: Dict) -> List[str]:
-        """Extract project skills"""
-        project_skills = []
-        jobs = project.get('jobs', [])
-        if isinstance(jobs, list):
-            for job in jobs[:3]:
-                if isinstance(job, dict):
-                    skill_id = str(job.get('id', ''))
-                    skill_name = self.skills_map.get(skill_id, job.get('name', ''))
-                    if skill_name:
-                        project_skills.append(skill_name)
-        return project_skills
-
-    def _get_delivery_days(self, project: Dict) -> int:
-        """Always return 3 days delivery"""
-        # MODIFICATION: Always 3 days regardless of project type
-        return 3
+        if not our_skills:
+            return 0.5  # Default score if no skills defined
+        
+        # Calculate match
+        matching_skills = set(project_skills) & set(our_skills)
+        match_score = len(matching_skills) / len(project_skills)
+        
+        return min(match_score, 1.0)
 
     def is_elite_project(self, project: Dict) -> bool:
-        """Check if a project is an elite project"""
+        """Check if project is elite"""
+        upgrades = project.get('upgrades', {})
+        return upgrades.get('featured', False) or upgrades.get('qualified', False)
+
+    def get_active_projects(self, limit: int = 50) -> List[Dict]:
+        """Fetch active projects from Freelancer API"""
         try:
-            upgrades = project.get('upgrades', {})
-            if not isinstance(upgrades, dict):
-                return False
-            
-            is_elite = (
-                upgrades.get('featured', False) or
-                upgrades.get('sealed', False) or
-                upgrades.get('NDA', False) or
-                upgrades.get('ip_contract', False) or
-                upgrades.get('non_compete', False) or
-                upgrades.get('project_management', False) or
-                upgrades.get('qualified', False)
+            response = requests.get(
+                f"{self.api_base}/projects/0.1/projects/active",
+                headers=self.headers,
+                params={
+                    'limit': limit,
+                    'job_details': 'true',
+                    'full_description': 'true'
+                }
             )
             
-            project_type = project.get('type', {})
-            if isinstance(project_type, dict):
-                type_name = project_type.get('name', '').lower()
-                if 'recruit' in type_name or 'premium' in type_name:
-                    is_elite = True
-            
-            nda_details = project.get('nda_details', {})
-            if isinstance(nda_details, dict) and nda_details.get('required', False):
-                is_elite = True
-            
-            return is_elite
-            
+            if response.status_code == 200:
+                data = response.json()
+                projects = data.get('result', {}).get('projects', [])
+                logging.info(f"Fetched {len(projects)} active projects")
+                return projects
+            else:
+                logging.error(f"Failed to fetch projects: {response.status_code}")
+                return []
+                
         except Exception as e:
-            logging.debug(f"Error checking elite status: {e}")
-            return False
+            logging.error(f"Error fetching projects: {e}")
+            return []
 
-    def get_project_details(self, project: Dict) -> Dict:
-        """Extract detailed information about a project"""
-        try:
-            upgrades = project.get('upgrades', {})
-            if not isinstance(upgrades, dict):
-                upgrades = {}
-            
-            budget = project.get('budget', {})
-            if not isinstance(budget, dict):
-                budget = {}
-            
-            bid_stats = project.get('bid_stats', {})
-            if not isinstance(bid_stats, dict):
-                bid_stats = {}
-            
-            details = {
-                'id': project.get('id'),
-                'title': project.get('title', 'Unknown'),
-                'is_elite': self.is_elite_project(project),
-                'featured': upgrades.get('featured', False),
-                'sealed': upgrades.get('sealed', False),
-                'nda': upgrades.get('NDA', False),
-                'ip_contract': upgrades.get('ip_contract', False),
-                'non_compete': upgrades.get('non_compete', False),
-                'urgent': upgrades.get('urgent', False),
-                'qualified': upgrades.get('qualified', False),
-                'budget': budget,
-                'bid_count': bid_stats.get('bid_count', 0),
-                'avg_bid': bid_stats.get('bid_avg', 0)
-            }
-            
-            return details
-            
-        except Exception as e:
-            logging.error(f"Error getting project details: {e}")
-            return {
-                'id': project.get('id'),
-                'title': project.get('title', 'Unknown'),
-                'is_elite': False,
-                'budget': {},
-                'bid_count': 0
-            }
-
-    def get_minimum_budget_for_currency(self, currency_code: str, project_type: str = 'fixed') -> float:
-        """Get minimum budget threshold for specific currency and project type"""
-        currency_code = currency_code.upper()
-        project_type = project_type.lower()
-        
-        # Check if currency filtering is enabled and get custom minimums
-        if self.config.get('currency_filtering', {}).get('enabled', False):
-            currency_config = self.config['currency_filtering']
-            
-            # Use custom INR/PKR minimums if available
-            if currency_code == 'INR' and 'inr_minimum_budget' in currency_config:
-                return currency_config['inr_minimum_budget']
-            elif currency_code == 'PKR' and 'pkr_minimum_budget' in currency_config:
-                return currency_config['pkr_minimum_budget']
-        
-        # Determine base amounts based on project type - ULTRA-LENIENT
-        if project_type == 'hourly':
-            # Hourly projects: 1 USD or equivalent (ultra-low)
-            base_usd_amount = 1.0
-        else:
-            # Fixed projects: 5 USD or equivalent (ultra-low)
-            base_usd_amount = 5.0
-        
-        # Currency-specific minimum budgets for FIXED projects (5 USD equivalent) - ULTRA-LOW
-        fixed_currency_minimums = {
-            'USD': 5.0,     # Ultra-low
-            'CAD': 5.0,     # Ultra-low
-            'EUR': 4.5,     # Ultra-low
-            'GBP': 4.0,     # Ultra-low
-            'AUD': 7.5,     # Ultra-low
-            'INR': 400.0,   # Ultra-low
-            'PKR': 1390.0,  # Ultra-low
-            'PHP': 280.0,   # Ultra-low
-            'BRL': 25.0,    # Ultra-low
-            'MXN': 85.0,    # Ultra-low
-            'JPY': 750.0,   # Ultra-low
-            'CNY': 36.0,    # Ultra-low
-            'ZAR': 92.5,    # Ultra-low
-            'NGN': 2250.0,  # Ultra-low
-            'EGP': 155.0,   # Ultra-low
-            'AED': 18.35,   # Ultra-low
-            'SAR': 18.75,   # Ultra-low
-        }
-        
-        # Currency-specific minimum budgets for HOURLY projects (1 USD equivalent) - ULTRA-LOW
-        hourly_currency_minimums = {
-            'USD': 1.0,     # Ultra-low
-            'CAD': 1.0,     # Ultra-low
-            'EUR': 0.9,     # Ultra-low
-            'GBP': 0.8,     # Ultra-low
-            'AUD': 1.5,     # Ultra-low
-            'INR': 80.0,    # Ultra-low
-            'PKR': 278.0,   # Ultra-low
-            'PHP': 56.0,    # Ultra-low
-            'BRL': 5.0,     # Ultra-low
-            'MXN': 17.0,    # Ultra-low
-            'JPY': 150.0,   # Ultra-low
-            'CNY': 7.2,     # Ultra-low
-            'ZAR': 18.5,    # Ultra-low
-            'NGN': 450.0,   # Ultra-low
-            'EGP': 31.0,    # Ultra-low
-            'AED': 3.67,    # Ultra-low
-            'SAR': 3.75,    # Ultra-low
-        }
-        
-        # Select the appropriate currency minimums based on project type
-        if project_type == 'hourly':
-            currency_minimums = hourly_currency_minimums
-        else:
-            currency_minimums = fixed_currency_minimums
-        
-        # Return currency-specific minimum or convert base amount
-        if currency_code in currency_minimums:
-            return currency_minimums[currency_code]
-        
-        # For unknown currencies, convert base USD amount to that currency
-        if self.currency_converter:
-            return self.currency_converter.get_min_budget_for_currency(base_usd_amount, currency_code)
-        
-        # Fallback to base USD amount
-        return base_usd_amount
-
-    def should_bid_on_project(self, project: Dict) -> Tuple[bool, str]:
-        """Determine if should bid on a project with ULTRA-LENIENT filtering"""
+    def place_bid(self, project: Dict) -> bool:
+        """Place a bid on a project"""
         try:
             project_id = project.get('id')
             
-            # Skip if already processed
-            if project_id in self.processed_projects:
-                return False, "Already processed"
+            # Calculate bid amount
+            bid_amount = self.calculate_bid_amount(project)
             
-            # SPAM CHECK - Only basic spam filtering (if enabled)
-            if self.spam_filter_enabled and self.spam_filter:
-                is_spam, spam_reasons = self.spam_filter.is_spam(project)
-                if is_spam:
-                    self.skipped_projects['spam'] += 1
-                    logging.warning(f"🚫 SPAM DETECTED: {project.get('title', '')[:50]}...")
-                    logging.warning(f"   Reasons: {', '.join(spam_reasons[:3])}")
-                    self.processed_projects.add(project_id)
-                    return False, f"Spam: {spam_reasons[0]}"
-            
-            # QUALITY CHECK - Skip if not in premium mode
-            if self.premium_mode and self.premium_filter:
-                is_premium, quality_score, factors = self.premium_filter.is_premium_project(project)
-                min_quality_score = self.config.get('quality_filters', {}).get('min_quality_score', 50)
-                
-                if quality_score < min_quality_score:
-                    self.skipped_projects['low_quality'] += 1
-                    logging.info(f"📊 Low quality project (score: {quality_score}): {project.get('title', '')[:50]}...")
-                    return False, f"Low quality score ({quality_score})"
-                else:
-                    logging.info(f"⭐ Quality project (score: {quality_score}): {project.get('title', '')[:50]}...")
-            
-            # Check bid count - very lenient
-            bid_stats = project.get('bid_stats', {})
-            if isinstance(bid_stats, dict):
-                bid_count = bid_stats.get('bid_count', 0)
-            else:
-                bid_count = 0
-                
-            # Very high bid limit
-            max_bids = self.config['filtering']['skip_projects_with_bids_above']
-            if bid_count > max_bids:
-                self.skipped_projects['too_many_bids'] += 1
-                return False, f"Too many bids ({bid_count})"
-            
-            # Check budget - ultra lenient
-            budget = project.get('budget', {})
-            if isinstance(budget, dict):
-                min_budget = float(budget.get('minimum', 0))
-                currency_code = project.get('currency', {}).get('code', 'USD')
-                
-                # Determine project type (hourly vs fixed)
-                budget_type = budget.get('type', 'fixed').lower()
-                if budget_type not in ['hourly', 'fixed']:
-                    budget_type = 'fixed'  # Default to fixed if unknown
-                
-                # Get currency-specific minimum budget based on project type
-                min_required = self.get_minimum_budget_for_currency(currency_code, budget_type)
-                
-                # Ultra lenient - only reject if budget is zero or negative
-                if min_budget <= 0:
-                    self.skipped_projects['low_budget'] += 1
-                    return False, f"Budget too low ({currency_code} {min_budget})"
-            else:
-                # If no budget info, still allow the bid
-                logging.debug("No budget information available - allowing bid")
-            
-            # CLIENT VERIFICATION - DISABLED for maximum bidding
-            # Skip all client verification checks to allow bidding on all projects
-            if False:  # Always false to skip client filtering
-                employer_id = project.get('owner_id')
-                if employer_id:
-                    # This code will never execute due to the False condition above
-                    pass
-            
-            # SKILL MATCH - DISABLED for maximum bidding
-            # Skip skill matching to allow bidding on all projects
-            if False:  # Always false to skip skill matching
-                match_score = self.calculate_skill_match(project)
-                min_skill_match = self.config['filtering']['min_skill_match_score']
-                if match_score < min_skill_match:
-                    self.skipped_projects['not_matched'] += 1
-                    return False, f"Poor skill match ({match_score:.2f})"
-            
-            # If we get here, the project passed all (minimal) checks
-            return True, "Good opportunity - Ultra-lenient filtering passed"
-            
-        except Exception as e:
-            logging.error(f"Error in should_bid_on_project: {e}")
-            # Be lenient on errors - allow the bid
-            return True, f"Error occurred but allowing bid: {str(e)}"
-
-    def check_and_sign_nda(self, project_id: int) -> bool:
-        """Check if project requires NDA and sign it"""
-        if not self.config['elite_projects']['auto_sign_nda']:
-            return True
-        
-        try:
-            endpoint = f"{self.api_base}/projects/0.1/projects/{project_id}/nda"
-            response = requests.get(endpoint, headers=self.headers, timeout=30)
-            
-            if response.status_code == 200:
-                data = response.json()
-                nda_data = data.get('result', {})
-                
-                if nda_data.get('status') == 'unsigned':
-                    sign_endpoint = f"{self.api_base}/projects/0.1/projects/{project_id}/nda/sign"
-                    sign_response = requests.post(sign_endpoint, headers=self.headers, json={}, timeout=30)
-                    
-                    if sign_response.status_code in [200, 201]:
-                        self.nda_signed_projects.add(project_id)
-                        logging.info("   ✅ NDA signed automatically")
-                        return True
-                    else:
-                        logging.error(f"   Failed to sign NDA: {sign_response.status_code}")
-                        return False
-                
-                elif nda_data.get('status') == 'signed':
-                    self.nda_signed_projects.add(project_id)
-                    return True
-            
-            return True
-            
-        except Exception as e:
-            logging.error(f"   Error checking/signing NDA: {e}")
-            return True
-
-    def check_and_sign_ip_agreement(self, project_id: int) -> bool:
-        """Check if project requires IP agreement and sign it"""
-        if not self.config['elite_projects']['auto_sign_ip_agreement']:
-            return True
-        
-        try:
-            endpoint = f"{self.api_base}/projects/0.1/projects/{project_id}/ip_contract"
-            response = requests.get(endpoint, headers=self.headers, timeout=30)
-            
-            if response.status_code == 200:
-                data = response.json()
-                ip_data = data.get('result', {})
-                
-                if ip_data.get('status') == 'unsigned':
-                    sign_endpoint = f"{self.api_base}/projects/0.1/projects/{project_id}/ip_contract/sign"
-                    sign_response = requests.post(sign_endpoint, headers=self.headers, json={}, timeout=30)
-                    
-                    if sign_response.status_code in [200, 201]:
-                        self.ip_signed_projects.add(project_id)
-                        logging.info("   ✅ IP agreement signed automatically")
-                        return True
-                    else:
-                        logging.error(f"   Failed to sign IP agreement: {sign_response.status_code}")
-                        return False
-                
-                elif ip_data.get('status') == 'signed':
-                    self.ip_signed_projects.add(project_id)
-                    return True
-            
-            return True
-            
-        except Exception as e:
-            logging.error(f"   Error checking/signing IP agreement: {e}")
-            return True
-
-    def track_bid_performance(self, project: Dict, bid_amount: float, priority_score: int, variant_used: str = None):
-        """Track bid performance including quality metrics"""
-        if not self.config['performance']['track_analytics']:
-            return
-        
-        try:
-            current_hour = datetime.now().hour
-            
-            # Get category
-            jobs = project.get('jobs', [])
-            if isinstance(jobs, list) and jobs:
-                first_job = jobs[0]
-                if isinstance(first_job, dict):
-                    category = first_job.get('name', 'Unknown')
-                else:
-                    category = 'Unknown'
-            else:
-                category = 'Unknown'
-            
-            # Track by hour
-            hour_key = str(current_hour)
-            if hour_key not in self.performance_data['by_hour']:
-                self.performance_data['by_hour'][hour_key] = {'bids': 0, 'wins': 0}
-            self.performance_data['by_hour'][hour_key]['bids'] += 1
-            
-            # Track by category
-            if category not in self.performance_data['by_category']:
-                self.performance_data['by_category'][category] = {'bids': 0, 'wins': 0}
-            self.performance_data['by_category'][category]['bids'] += 1
-            
-            # Track by budget range
-            budget_range = 'low' if bid_amount < 100 else 'medium' if bid_amount < 500 else 'high'
-            if budget_range not in self.performance_data['by_budget_range']:
-                self.performance_data['by_budget_range'][budget_range] = {'bids': 0, 'wins': 0}
-            self.performance_data['by_budget_range'][budget_range]['bids'] += 1
-            
-            # Track by message type
-            if variant_used:
-                if variant_used not in self.performance_data['by_message_type']:
-                    self.performance_data['by_message_type'][variant_used] = {'bids': 0, 'wins': 0}
-                self.performance_data['by_message_type'][variant_used]['bids'] += 1
-            
-            # Track by quality score (for premium mode)
-            if self.premium_mode and self.premium_filter:
-                is_premium, quality_score, _ = self.premium_filter.is_premium_project(project)
-                if is_premium:
-                    self.premium_bid_count += 1
-                    self.total_quality_score += quality_score
-                    
-                    # Track by quality tier
-                    if quality_score >= 80:
-                        tier = 'exceptional'
-                    elif quality_score >= 70:
-                        tier = 'high'
-                    elif quality_score >= 60:
-                        tier = 'good'
-                    else:
-                        tier = 'moderate'
-                    
-                    if tier not in self.performance_data['by_quality_score']:
-                        self.performance_data['by_quality_score'][tier] = {'bids': 0, 'wins': 0}
-                    self.performance_data['by_quality_score'][tier]['bids'] += 1
-                
-        except Exception as e:
-            logging.debug(f"Error tracking performance: {e}")
-
-    def handle_rate_limit(self, wait_time: int = 300):
-        """Handle rate limit by waiting and clearing processed projects"""
-        logging.warning(f"⚠️  Rate limited! Waiting {wait_time} seconds...")
-        
-        # Clear some processed projects to allow new ones
-        if len(self.processed_projects) > 100:
-            # Keep only the most recent 50 projects
-            self.processed_projects = set(list(self.processed_projects)[-50:])
-        
-        # Update Redis status
-        if self.redis_client:
-            self.redis_client.set('bot_status', 'Rate Limited - Waiting')
-            self.redis_client.set('rate_limit_wait_until', (datetime.now() + timedelta(seconds=wait_time)).isoformat())
-        
-        # Wait
-        time.sleep(wait_time)
-        
-        # Update status
-        if self.redis_client:
-            self.redis_client.set('bot_status', 'Running - Ultra-Lenient Minimum Budget Mode')
-            self.redis_client.delete('rate_limit_wait_until')
-
-    def place_bid(self, project: Dict) -> bool:
-        """Place a bid on a project with all enhancements"""
-        try:
-            project_id = project.get("id")
-            
-            if not project_id:
-                logging.error("Project has no ID")
-                return False
-            
-            # Double-check if already processed
-            if project_id in self.processed_projects:
-                logging.debug(f"Project {project_id} already processed, skipping")
-                return False
-            
-            # Add to processed immediately to prevent duplicate attempts
-            self.processed_projects.add(project_id)
-            
-            # Check if it's a new day
-            if datetime.now().date() > self.today_date:
-                self.reset_daily_stats()
-            
-            # Calculate priority
-            priority_score, priority_reasons = self.calculate_bid_priority(project)
-            
-            # Get project details
-            details = self.get_project_details(project)
-            is_elite = details.get('is_elite', False)
-            
-            logging.info(f"   Priority: {priority_score} - {priority_reasons}")
-            
-            # Check and sign agreements if needed
-            if details.get('nda', False):
-                self.check_and_sign_nda(project_id)
-            
-            if details.get('ip_contract', False):
-                self.check_and_sign_ip_agreement(project_id)
-            
-            # Rate limiting
-            current_time = time.time()
-            min_delay = self.config['bidding']['min_bid_delay_seconds']
-            if current_time - self.last_bid_time < min_delay:
-                time.sleep(min_delay - (current_time - self.last_bid_time))
-            
-            # Calculate competitive bid - ALWAYS MINIMUM
-            bid_amount = self.calculate_competitive_bid(project, is_elite)
-            
-            # ALWAYS 3 DAYS DELIVERY
-            delivery_days = 3
-            
-            # Generate optimized message
-            bid_message = self.select_bid_message(project, is_elite)
-            
-            # Get variant used for tracking
-            total_uses = sum(self.message_variants.values())
-            if total_uses > 0:
-                variant_index = (total_uses - 1) % len(self.message_variants)
-                variant_used = list(self.message_variants.keys())[variant_index]
-            else:
-                variant_used = 'professional'
+            # Select bid message
+            message = self.select_bid_message(project)
             
             # Prepare bid data
             bid_data = {
-                "project_id": project_id,
-                "bidder_id": int(self.user_id),
-                "amount": bid_amount,
-                "period": delivery_days,
-                "milestone_percentage": 100,
-                "description": bid_message
+                'project_id': project_id,
+                'bidder_id': self.user_id,
+                'amount': bid_amount,
+                'period': self.config['bidding']['delivery_days'],
+                'milestone_percentage': 100,
+                'description': message
             }
             
-            # Log bid details
-            project_type = "🌟 ELITE" if is_elite else "Regular"
-            logging.info(f"   Type: {project_type}")
-            
-            # Format budget info with currency conversion
-            budget_min = details.get('budget', {}).get('minimum', 0)
-            budget_max = details.get('budget', {}).get('maximum', 0)
-            currency_code = project.get('currency', {}).get('code', 'USD')
-            
-            if self.currency_converter:
-                budget_info = self.currency_converter.format_budget_info(budget_min, currency_code)
-                budget_max_info = self.currency_converter.format_budget_info(budget_max, currency_code)
-                logging.info(f"   💰 Budget: {budget_info} - {budget_max_info}")
-            else:
-                logging.info(f"   💰 Budget: {currency_code} {budget_min} - {budget_max}")
-                
-            logging.info(f"   💰 Bid: ${bid_amount:.2f} with {delivery_days}-day delivery (MINIMUM BID)")
-            logging.info(f"   📝 Message variant: {variant_used}")
-            
-            if is_elite:
-                flags = []
-                if details.get('featured'): flags.append("Featured")
-                if details.get('sealed'): flags.append("Sealed")
-                if details.get('nda'): flags.append("NDA")
-                if details.get('ip_contract'): flags.append("IP Contract")
-                if details.get('urgent'): flags.append("Urgent")
-                logging.info(f"   Elite flags: {', '.join(flags)}")
-            
-            # Submit bid
-            endpoint = f"{self.api_base}/projects/0.1/bids"
+            # Place bid
             response = requests.post(
-                endpoint, 
-                headers=self.headers, 
-                json=bid_data,
-                timeout=30
+                f"{self.api_base}/projects/0.1/bids/",
+                headers=self.headers,
+                json=bid_data
             )
             
-            # Handle rate limiting
-            if response.status_code == 429:
-                logging.error("❌ Rate limited!")
-                # Remove from processed so we can try again later
-                self.processed_projects.discard(project_id)
+            if response.status_code == 200:
+                data = response.json()
+                bid_id = data.get('result', {}).get('id')
                 
-                # Handle rate limit
-                self.handle_rate_limit(300)  # Wait 5 minutes
-                return False
-            
-            # Handle duplicate bid
-            if response.status_code == 409:
-                try:
-                    error_data = response.json()
-                    if error_data.get('error_code') == 'ProjectExceptionCodes.DUPLICATE_BID':
-                        logging.warning(f"⚠️  Already bid on project {project_id} - marking as processed")
-                        # Keep in processed projects
-                        return False
-                except:
-                    pass
-            
-            if response.status_code in [200, 201]:
                 self.bid_count += 1
                 self.bids_today += 1
-                if is_elite:
-                    self.elite_bid_count += 1
-                self.last_bid_time = time.time()
                 
-                logging.info(f"✅ Bid placed successfully! Total: {self.bid_count} (Today: {self.bids_today})")
+                if self.is_elite_project(project):
+                    self.elite_bid_count += 1
+                
+                logging.info(f"✅ Bid placed successfully! ID: {bid_id}")
+                logging.info(f"   Amount: ${bid_amount}")
+                logging.info(f"   Project: {project.get('title', 'Unknown')[:50]}...")
                 
                 # Track performance
-                self.track_bid_performance(project, bid_amount, priority_score, variant_used)
-                
-                # Save bid to Redis
-                if self.redis_client:
-                    bid_key = f"bid:{int(time.time()*1000)}"
-                    bid_info = {
-                        "project_id": project_id,
-                        "project_title": project.get('title', '')[:100],
-                        "amount": bid_amount,
-                        "delivery_days": delivery_days,
-                        "timestamp": datetime.now().isoformat(),
-                        "status": "success",
-                        "is_elite": is_elite,
-                        "priority_score": priority_score,
-                        "message_variant": variant_used,
-                        "bid_strategy": "minimum_budget"
-                    }
-                    self.redis_client.set(bid_key, json.dumps(bid_info))
-                    self.redis_client.expire(bid_key, 86400)
-                    self.redis_client.set('last_bid_time', datetime.now().isoformat())
-                
-                # Save state
-                self.save_state_to_redis()
+                self.track_bid_performance(project, bid_amount, True)
                 
                 return True
             else:
-                logging.error(f"❌ Failed to bid: {response.status_code}")
-                if response.text:
-                    logging.error(f"   Response: {response.text[:200]}")
-                
-                # Remove from processed so we can try again
-                self.processed_projects.discard(project_id)
-                
-                if self.redis_client:
-                    self.redis_client.set('last_error', f"Bid failed: {response.status_code}")
-                
+                logging.error(f"Bid failed: {response.status_code} - {response.text}")
                 return False
                 
         except Exception as e:
-            logging.error(f"Exception placing bid: {e}")
-            import traceback
-            logging.error(f"Traceback: {traceback.format_exc()}")
-            
-            # Remove from processed on error
-            if project_id:
-                self.processed_projects.discard(project_id)
-            
-            if self.redis_client:
-                self.redis_client.set('last_error', str(e))
+            logging.error(f"Error placing bid: {e}")
             return False
 
-    def get_active_projects(self, limit: int = 50) -> List[Dict]:
-        """Fetch active projects with better error handling"""
-        try:
-            endpoint = f"{self.api_base}/projects/0.1/projects/active"
-            params = {
-                "limit": limit,
-                "job_details": "true",
-                "full_description": "true",
-                "upgrade_details": "true",
-                "compact": "false"
-            }
-            
-            logging.debug(f"Fetching projects from: {endpoint}")
-            
-            response = requests.get(
-                endpoint, 
-                headers=self.headers, 
-                params=params,
-                timeout=30
-            )
-            
-            # Use the validation method
-            data = self.validate_api_response(response, "Projects API")
-            if data is None:
-                return []
-            
-            # Safely extract projects
-            result = data.get("result", {})
-            if not isinstance(result, dict):
-                logging.error(f"Invalid result structure: {type(result)}")
-                return []
-            
-            projects = result.get("projects", [])
-            if not isinstance(projects, list):
-                logging.error(f"Projects is not a list: {type(projects)}")
-                return []
-            
-            # Filter and validate projects
-            valid_projects = []
-            for project in projects:
-                validated = self.validate_project_data(project)
-                if validated:
-                    valid_projects.append(validated)
-                else:
-                    self.skipped_projects['invalid_data'] += 1
-            
-            logging.info(f"✓ Fetched {len(valid_projects)} valid projects (skipped {len(projects) - len(valid_projects)} invalid)")
-            
-            # Process with smart bidding if enabled
-            if self.config.get('smart_bidding', {}).get('enabled', True) and valid_projects:
-                projects_with_priority = []
-                
-                for project in valid_projects:
-                    try:
-                        priority_score, _ = self.calculate_bid_priority(project)
-                        projects_with_priority.append((priority_score, project))
-                    except Exception as e:
-                        logging.warning(f"Error calculating priority: {e}")
-                        continue
-                
-                # Sort by priority
-                projects_with_priority.sort(key=lambda x: x[0], reverse=True)
-                sorted_projects = [p[1] for p in projects_with_priority]
-                
-                # Count elite projects
-                elite_count = sum(1 for p in sorted_projects if self.is_elite_project(p))
-                
-                logging.info(f"✓ Sorted {len(sorted_projects)} projects by priority ({elite_count} elite)")
-                return sorted_projects
-            
-            return valid_projects
-            
-        except requests.exceptions.Timeout:
-            logging.error("Request timeout - Freelancer API may be slow")
-            if self.redis_client:
-                self.redis_client.set('last_error', 'API timeout')
-            return []
-        except requests.exceptions.ConnectionError:
-            logging.error("Connection error - Check internet connection")
-            if self.redis_client:
-                self.redis_client.set('last_error', 'Connection error')
-            return []
-        except Exception as e:
-            logging.error(f"Unexpected error in get_active_projects: {e}")
-            logging.error(f"Error type: {type(e).__name__}")
-            import traceback
-            logging.error(f"Traceback: {traceback.format_exc()}")
-            if self.redis_client:
-                self.redis_client.set('last_error', str(e))
-            return []
+    def calculate_bid_amount(self, project: Dict) -> float:
+        """Calculate appropriate bid amount for project"""
+        budget = project.get('budget', {})
+        min_budget = float(budget.get('minimum', 0))
+        currency_code = project.get('currency', {}).get('code', 'USD')
+        
+        # Convert to USD if needed
+        if self.currency_converter and currency_code != 'USD':
+            min_budget = self.currency_converter.to_usd(min_budget, currency_code)
+        
+        # Apply multiplier based on project type
+        if self.is_elite_project(project):
+            multiplier = self.config['bidding']['bid_multiplier_elite']
+        else:
+            multiplier = self.config['bidding']['bid_multiplier_regular']
+        
+        bid_amount = min_budget * multiplier
+        
+        # Ensure minimum bid
+        if self.is_elite_project(project):
+            min_bid = self.config['bidding']['default_bid_elite']
+        else:
+            min_bid = self.config['bidding']['default_bid_regular']
+        
+        return max(bid_amount, min_bid)
+
+    def select_bid_message(self, project: Dict) -> str:
+        """Select appropriate bid message for project"""
+        messages = self.bid_messages.get('professional', [])
+        
+        if not messages:
+            return "I'm interested in your project and ready to start immediately."
+        
+        # Select random message
+        import random
+        message = random.choice(messages)
+        
+        # Replace placeholders
+        skills = ', '.join([job.get('name', '') for job in project.get('jobs', [])[:3]])
+        message = message.replace('{skills}', skills)
+        
+        return message
+
+    def track_bid_performance(self, project: Dict, bid_amount: float, success: bool):
+        """Track bid performance for analytics"""
+        if not self.config['performance']['track_analytics']:
+            return
+        
+        # Track by hour
+        hour = datetime.now().hour
+        if hour not in self.performance_data['by_hour']:
+            self.performance_data['by_hour'][hour] = {'bids': 0, 'amount': 0}
+        
+        self.performance_data['by_hour'][hour]['bids'] += 1
+        self.performance_data['by_hour'][hour]['amount'] += bid_amount
 
     def process_contests(self):
-        """Process and enter contests"""
-        if not self.contest_handler:
+        """Process contests if enabled"""
+        if not self.contests_enabled or not self.contest_handler:
             return
         
         try:
-            logging.info("\n🏆 Checking for contests...")
-            
-            # Get active contests
-            contests = self.contest_handler.get_active_contests(limit=30)
-            
-            if not contests:
-                logging.info("No active contests found")
-                return
-            
-            logging.info(f"Found {len(contests)} active contests")
-            
-            new_entries = 0
-            for contest in contests:
-                contest_id = contest.get('id')
-                
-                # Check if already processed
-                if contest_id in self.contest_handler.processed_contests:
-                    continue
-                
-                # Mark as processed
-                self.contest_handler.processed_contests.add(contest_id)
-                
-                # Check if should enter
-                should_enter, reason = self.contest_handler.should_enter_contest(contest, self.config)
-                
-                if not should_enter:
-                    logging.debug(f"Skipping contest {contest.get('title', '')[:40]}... - {reason}")
-                    continue
-                
-                # Log contest details
-                logging.info(f"\n{'='*60}")
-                logging.info(f"🎯 Found eligible contest: {contest.get('title', '')[:50]}...")
-                logging.info(f"   Prize: ${contest.get('prize', 0)}")
-                logging.info(f"   Type: {contest.get('type', {}).get('name', 'Unknown')}")
-                logging.info(f"   Entries: {contest.get('entry_count', 0)}")
-                logging.info(f"   Skills: {', '.join([j.get('name', '') for j in contest.get('jobs', [])[:3]])}")
-                
-                # Create and submit entry
-                entry_data = self.contest_handler.create_contest_entry(contest, self.config)
-                
-                if entry_data:
-                    success = self.contest_handler.submit_contest_entry(contest_id, entry_data)
-                    
-                    if success:
-                        new_entries += 1
-                        logging.info(f"✅ Successfully entered contest!")
-                        
-                        # Small delay between entries
-                        time.sleep(3)
-                    else:
-                        logging.error(f"❌ Failed to enter contest")
-                
-                # Limit entries per cycle
-                if new_entries >= 5:
-                    logging.info("Reached contest entry limit for this cycle")
-                    break
-            
-            # Save state
-            self.contest_handler.save_contest_state()
-            
-            # Check results of previous contests
-            self.contest_handler.check_contest_results()
-            
-            # Log summary
-            if new_entries > 0:
-                summary = self.contest_handler.get_contest_summary()
-                logging.info(f"\n📊 Contest Summary:")
-                logging.info(f"   Total entered: {summary['total_entered']}")
-                logging.info(f"   Total wins: {summary['total_wins']}")
-                logging.info(f"   Win rate: {summary['win_rate']:.1f}%")
-                logging.info(f"   Total prize money: ${summary['total_prize_money']}")
-                
+            self.contest_handler.process_available_contests()
         except Exception as e:
-            logging.error(f"Error processing contests: {e}")
-            import traceback
-            logging.error(f"Traceback: {traceback.format_exc()}")
+            logging.warning(f"Error processing contests: {e}")
 
-    def analyze_performance(self):
-        """Analyze and log performance metrics including premium stats"""
-        if not self.config['performance']['track_analytics'] or self.bid_count == 0:
-            return
-        
-        logging.info("\n" + "="*60)
-        logging.info("📊 PERFORMANCE ANALYTICS - ULTRA-LENIENT MINIMUM BUDGET STRATEGY")
-        logging.info("="*60)
-        
-        # Overall metrics
-        win_rate = (self.wins_count / self.bid_count * 100) if self.bid_count > 0 else 0
-        elite_percentage = (self.elite_bid_count / self.bid_count * 100) if self.bid_count > 0 else 0
-        
-        logging.info(f"Overall Stats:")
-        logging.info(f"  Total Bids: {self.bid_count}")
-        logging.info(f"  Projects Won: {self.wins_count} ({win_rate:.1f}% win rate)")
-        logging.info(f"  Elite Projects: {self.elite_bid_count} ({elite_percentage:.1f}%)")
-        logging.info(f"  Bids Today: {self.bids_today}")
-        logging.info(f"  Bidding Strategy: MINIMUM BUDGET (100% at minimum)")
-        logging.info(f"  Delivery Promise: 3 DAYS (all projects)")
-        logging.info(f"  Filtering Mode: ULTRA-LENIENT (maximum bidding)")
-        
-        # Premium project statistics
-        if self.premium_mode and self.premium_bid_count > 0:
-            avg_quality = self.total_quality_score / self.premium_bid_count
-            premium_win_rate = (self.premium_project_wins / self.premium_bid_count * 100) if self.premium_bid_count > 0 else 0
-            
-            logging.info(f"\n⭐ Premium Project Stats:")
-            logging.info(f"  Premium bids placed: {self.premium_bid_count}")
-            logging.info(f"  Average quality score: {avg_quality:.1f}")
-            logging.info(f"  Premium win rate: {premium_win_rate:.1f}%")
-            
-            # Quality tier breakdown
-            if self.performance_data.get('by_quality_score'):
-                logging.info(f"\n💎 Bids by Quality Tier:")
-                for tier, data in sorted(self.performance_data['by_quality_score'].items()):
-                    logging.info(f"  {tier.title()}: {data['bids']} bids")
-        
-        # Skip reasons including spam
-        total_skipped = sum(self.skipped_projects.values())
-        if total_skipped > 0:
-            logging.info(f"\nSkipped Projects: {total_skipped}")
-            for reason, count in sorted(self.skipped_projects.items(), key=lambda x: x[1], reverse=True):
-                percentage = (count / total_skipped * 100)
-                logging.info(f"  {reason.replace('_', ' ').title()}: {count} ({percentage:.1f}%)")
-        
-        # Spam filter statistics
-        if self.spam_filter_enabled and self.spam_filter:
-            spam_stats = self.spam_filter.get_stats()
-            if spam_stats['total_checked'] > 0:
-                logging.info(f"\n🚫 Spam Filter Stats:")
-                logging.info(f"  Projects checked: {spam_stats['total_checked']}")
-                logging.info(f"  Spam detected: {spam_stats['spam_detected']} ({spam_stats['spam_rate']:.1f}%)")
-                if spam_stats['top_reasons']:
-                    logging.info(f"  Top spam reasons:")
-                    for reason, count in spam_stats['top_reasons'][:3]:
-                        logging.info(f"    - {reason}: {count}")
-        
-        # Best performing hours
-        if self.performance_data.get('by_hour'):
-            logging.info("\n⏰ Activity by Hour:")
-            sorted_hours = sorted(
-                self.performance_data['by_hour'].items(),
-                key=lambda x: x[1]['bids'],
-                reverse=True
-            )[:5]
-            for hour, data in sorted_hours:
-                logging.info(f"  {hour}:00 - {data['bids']} bids")
-        
-        # Category performance
-        if self.performance_data.get('by_category'):
-            logging.info("\n📁 Top Categories:")
-            sorted_categories = sorted(
-                self.performance_data['by_category'].items(),
-                key=lambda x: x[1]['bids'],
-                reverse=True
-            )[:5]
-            for category, data in sorted_categories:
-                logging.info(f"  {category}: {data['bids']} bids")
-        
-        # Message variant performance
-        if self.config['performance']['ab_testing_enabled'] and self.message_variants:
-            logging.info("\n💬 Message Variant Usage:")
-            for variant, count in sorted(self.message_variants.items(), key=lambda x: x[1], reverse=True):
-                total_variants = sum(self.message_variants.values())
-                percentage = (count / total_variants * 100) if total_variants > 0 else 0
-                logging.info(f"  {variant}: {count} ({percentage:.1f}%)")
-        
-        # Contest performance
-        if self.contests_enabled and self.contest_handler:
-            contest_summary = self.contest_handler.get_contest_summary()
-            if contest_summary['total_entered'] > 0:
-                logging.info("\n🏆 Contest Performance:")
-                logging.info(f"  Contests entered: {contest_summary['total_entered']}")
-                logging.info(f"  Contests won: {contest_summary['total_wins']}")
-                logging.info(f"  Win rate: {contest_summary['win_rate']:.1f}%")
-                logging.info(f"  Total prize money: ${contest_summary['total_prize_money']}")
-
-    def realtime_monitor_with_bidding(self):
-        """Enhanced monitoring loop with better rate limit handling"""
-        logging.info("🚀 Starting Enhanced AutoWork Bot - ULTRA-LENIENT MINIMUM BUDGET MODE...")
-        logging.info(f"User ID: {self.user_id}")
-        logging.info(f"Bidding Strategy: ALWAYS MINIMUM BUDGET")
-        logging.info(f"Delivery Time: ALWAYS 3 DAYS")
-        logging.info(f"Filtering Mode: ULTRA-LENIENT (maximum bidding)")
-        logging.info(f"Smart Features: {'Enabled' if self.config['smart_bidding']['enabled'] else 'Disabled'}")
-        logging.info(f"Client Filtering: {'Enabled' if self.config['client_filtering']['enabled'] else 'Disabled'}")
-        logging.info(f"Currency Filtering: {'Enabled' if self.config['currency_filtering']['enabled'] else 'Disabled'}")
-        logging.info(f"Spam Filtering: {'Enabled' if self.spam_filter_enabled else 'Disabled'}")
-        logging.info(f"Portfolio Matching: {'Enabled' if self.config['filtering']['portfolio_matching'] else 'Disabled'}")
-        logging.info(f"A/B Testing: {'Enabled' if self.config['performance']['ab_testing_enabled'] else 'Disabled'}")
-        logging.info(f"Contests: {'Enabled' if self.contests_enabled else 'Disabled'}")
-        
-        error_count = 0
-        max_errors = self.config['monitoring']['max_consecutive_errors']
-        cycle_count = 0
-        rate_limit_count = 0
-        
-        # Update Redis status
-        if self.redis_client:
-            self.redis_client.set('bot_status', 'Running - Ultra-Lenient Minimum Budget Mode')
-            self.redis_client.set('bot_start_time', self.start_time.isoformat())
-        
-        while True:
-            try:
-                cycle_count += 1
-                
-                # Check daily limit
-                if self.bids_today >= self.config['monitoring']['daily_bid_limit']:
-                    logging.warning(f"Daily bid limit reached ({self.config['monitoring']['daily_bid_limit']})")
-                    hours_until_midnight = (24 - datetime.now().hour)
-                    logging.info(f"Waiting {hours_until_midnight} hours until midnight...")
-                    time.sleep(hours_until_midnight * 3600)
-                    continue
-                
-                # Fetch and process projects
-                projects = self.get_active_projects(limit=self.config['filtering']['max_projects_per_cycle'])
-                
-                if projects:
-                    logging.info(f"\n🔄 Cycle {cycle_count}: Processing top projects from {len(projects)} fetched")
-                    
-                    new_bids = 0
-                    projects_analyzed = 0
-                    rate_limited = False
-                    
-                    # Process each project
-                    for project in projects:
-                        project_id = project.get("id")
-                        
-                        # Skip if already processed
-                        if project_id in self.processed_projects:
-                            continue
-                        
-                        projects_analyzed += 1
-                        
-                        # Check if should bid
-                        should_bid, reason = self.should_bid_on_project(project)
-                        
-                        if not should_bid:
-                            logging.debug(f"⏭️  Skipping: {project.get('title', 'Unknown')[:40]}... - {reason}")
-                            self.processed_projects.add(project_id)
-                            continue
-                        
-                        # Place bid
-                        logging.info(f"\n{'='*60}")
-                        logging.info(f"🎯 Attempting to bid on: {project.get('title', 'Unknown')[:50]}...")
-                        
-                        success = self.place_bid(project)
-                        
-                        if success:
-                            new_bids += 1
-                            rate_limit_count = 0  # Reset rate limit counter
-                            
-                            # Smart delay based on priority
-                            priority_score, _ = self.calculate_bid_priority(project)
-                            if priority_score > 150:
-                                delay = 2  # Fast for high priority
-                            elif priority_score > 100:
-                                delay = 3
-                            else:
-                                delay = 5
-                            
-                            logging.info(f"⏳ Waiting {delay} seconds before next bid...")
-                            time.sleep(delay)
-                        else:
-                            # Check if we got rate limited
-                            if self.redis_client and self.redis_client.get('rate_limit_wait_until'):
-                                rate_limited = True
-                                break
-                        
-                        # Stop if we've bid enough this cycle
-                        if new_bids >= 10:  # Max 10 bids per cycle
-                            logging.info("📊 Reached cycle bid limit (10 bids)")
-                            break
-                    
-                    # Log cycle summary
-                    if projects_analyzed == 0:
-                        logging.info("No new projects to analyze")
-                    else:
-                        logging.info(f"\n📊 Cycle Summary:")
-                        logging.info(f"   Projects analyzed: {projects_analyzed}")
-                        logging.info(f"   Bids placed: {new_bids}")
-                        logging.info(f"   Projects skipped: {projects_analyzed - new_bids}")
-                        logging.info(f"   Strategy: MINIMUM BUDGET (3-day delivery)")
-                    
-                    if not rate_limited:
-                        error_count = 0  # Reset on success
-                    
-                else:
-                    error_count += 1
-                    logging.warning(f"No projects fetched (error count: {error_count}/{max_errors})")
-                    
-                    if error_count >= max_errors:
-                        logging.error(f"Max errors reached. Waiting {self.config['monitoring']['error_retry_delay_seconds']} seconds...")
-                        time.sleep(self.config['monitoring']['error_retry_delay_seconds'])
-                        error_count = 0
-                
-                # Analyze performance periodically
-                if cycle_count % self.config['performance']['analyze_every_n_cycles'] == 0:
-                    self.analyze_performance()
-                
-                # Process contests periodically (less frequently than projects)
-                if self.contests_enabled and cycle_count % 10 == 0:  # Every 10 cycles
-                    self.process_contests()
-                
-                # Save state
-                self.save_state_to_redis()
-                
-                # Determine wait time based on time of day and rate limiting
-                current_hour = datetime.now().hour
-                if rate_limit_count > 0:
-                    # If we've been rate limited, wait longer
-                    wait_time = 300  # 5 minutes
-                elif 2 <= current_hour <= 6:  # Late night - less activity
-                    wait_time = self.config['monitoring']['off_hours_interval']
-                elif 8 <= current_hour <= 22:  # Peak hours
-                    wait_time = self.config['monitoring']['peak_hours_interval']
-                else:
-                    wait_time = self.config['monitoring']['check_interval_seconds']
-                
-                # Show summary
-                if self.bid_count > 0:
-                    win_rate = (self.wins_count / self.bid_count * 100)
-                    elite_rate = (self.elite_bid_count / self.bid_count * 100)
-                    skip_rate = (sum(self.skipped_projects.values()) / (self.bid_count + sum(self.skipped_projects.values())) * 100)
-                    
-                    logging.info(f"\n📈 Overall Stats: {self.bid_count} total bids | {win_rate:.1f}% win rate | {elite_rate:.1f}% elite | {skip_rate:.1f}% filtered")
-                    logging.info(f"   💰 All bids placed at MINIMUM BUDGET with 3-DAY DELIVERY")
-                
-                logging.info(f"💤 Waiting {wait_time} seconds until next cycle...")
-                time.sleep(wait_time)
-                
-            except KeyboardInterrupt:
-                logging.info("\n⏹️  Bot stopped by user")
-                self.analyze_performance()
-                if self.redis_client:
-                    self.redis_client.set('bot_status', 'Stopped')
-                break
-            except Exception as e:
-                error_count += 1
-                logging.error(f"Error in monitoring loop: {e}")
-                import traceback
-                logging.error(f"Traceback: {traceback.format_exc()}")
-                
-                if self.redis_client:
-                    self.redis_client.set('last_error', str(e))
-                
-                if error_count >= max_errors:
-                    logging.error(f"Too many errors. Waiting {self.config['monitoring']['error_retry_delay_seconds']} seconds...")
-                    time.sleep(self.config['monitoring']['error_retry_delay_seconds'])
-                    error_count = 0
-                else:
-                    time.sleep(30)
-
+    def reset_daily_stats(self):
+        """Reset daily statistics"""
+        if datetime.now().date() != self.today_date:
+            self.bids_today = 0
+            self.today_date = datetime.now().date()
+            logging.info("📅 Daily stats reset")
 
 if __name__ == "__main__":
-    # For local testing
     bot = AutoWorkMinimal()
     bot.realtime_monitor_with_bidding()
