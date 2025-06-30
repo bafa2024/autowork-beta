@@ -378,48 +378,55 @@ class AutoWorkMinimal:
             return False, f"Error evaluating project: {str(e)}"
 
     def calculate_project_quality_score(self, project: Dict) -> int:
-        """Calculate quality score for a project (0-100) - lenient on client ratings"""
+        """Calculate quality score for a project (0-100) - more lenient for better coverage"""
         score = 0
         
-        # Description quality (30 points)
+        # Description quality (30 points) - More lenient
         description = project.get('description', '')
         word_count = len(description.split())
-        if word_count >= 200:
+        if word_count >= 100:
             score += 30
-        elif word_count >= 100:
-            score += 20
         elif word_count >= 50:
+            score += 20
+        elif word_count >= 20:
+            score += 15
+        elif word_count >= 10:
             score += 10
         
-        # Has clear requirements (20 points)
-        requirements_keywords = ['requirements', 'need', 'must have', 'looking for', 'deliverables']
+        # Has clear requirements (20 points) - More lenient
+        requirements_keywords = ['requirements', 'need', 'must have', 'looking for', 'deliverables', 'want', 'project']
         if any(keyword in description.lower() for keyword in requirements_keywords):
             score += 20
+        elif word_count > 0:  # Give points for any description
+            score += 10
         
-        # Budget quality (25 points) - Increased weight
+        # Budget quality (25 points) - More lenient
         budget = project.get('budget', {})
         if isinstance(budget, dict):
             min_budget = budget.get('minimum', 0)
             if self.currency_converter:
                 min_usd = self.currency_converter.to_usd(min_budget, project.get('currency', {}).get('code', 'USD'))
-                if min_usd >= 500:
+                if min_usd >= 200:
                     score += 25
-                elif min_usd >= 250:
-                    score += 20
                 elif min_usd >= 100:
-                    score += 15
+                    score += 20
                 elif min_usd >= 50:
+                    score += 15
+                elif min_usd >= 25:
                     score += 10
+                else:
+                    score += 5  # Give some points even for low budgets
         
-        # Client quality (10 points) - Reduced weight, focus on payment verification only
+        # Client quality (10 points) - More lenient
         owner = project.get('owner', {})
         if isinstance(owner, dict):
             # Payment verification is still important
             if owner.get('status', {}).get('payment_verified', False):
                 score += 10
-            # No penalty for lack of rating/reviews
+            else:
+                score += 5  # Give points even without verification
         
-        # Project features (15 points)
+        # Project features (15 points) - More lenient
         upgrades = project.get('upgrades', {})
         if isinstance(upgrades, dict):
             if upgrades.get('featured', False):
@@ -429,40 +436,44 @@ class AutoWorkMinimal:
             if upgrades.get('urgent', False):
                 score += 5
         
+        # Bonus points for any project with a budget
+        if isinstance(budget, dict) and budget.get('minimum', 0) > 0:
+            score += 5
+        
         return min(score, 100)
 
     def get_minimum_budget_for_currency(self, currency_code: str, project_type: str = 'fixed') -> float:
-        """Get minimum budget threshold for quality projects"""
+        """Get minimum budget threshold for quality projects - more lenient"""
         currency_code = currency_code.upper()
         project_type = project_type.lower()
         
-        # Quality thresholds for different currencies (higher than before)
+        # More lenient thresholds for different currencies
         if project_type == 'hourly':
-            # Hourly projects: Higher quality threshold
+            # Hourly projects: More lenient threshold
             hourly_minimums = {
-                'USD': 25.0,
-                'CAD': 30.0,
-                'EUR': 22.0,
-                'GBP': 20.0,
-                'AUD': 35.0,
-                'INR': 2000.0,
-                'PKR': 6950.0,
-                'PHP': 1400.0,
+                'USD': 15.0,
+                'CAD': 20.0,
+                'EUR': 12.0,
+                'GBP': 10.0,
+                'AUD': 25.0,
+                'INR': 1000.0,
+                'PKR': 3500.0,
+                'PHP': 700.0,
             }
-            return hourly_minimums.get(currency_code, 25.0)
+            return hourly_minimums.get(currency_code, 15.0)
         else:
-            # Fixed projects: Quality threshold
+            # Fixed projects: More lenient threshold
             fixed_minimums = {
-                'USD': 100.0,
-                'CAD': 130.0,
-                'EUR': 90.0,
-                'GBP': 80.0,
-                'AUD': 150.0,
-                'INR': 8000.0,
-                'PKR': 27800.0,
-                'PHP': 5600.0,
+                'USD': 50.0,
+                'CAD': 65.0,
+                'EUR': 45.0,
+                'GBP': 40.0,
+                'AUD': 75.0,
+                'INR': 4000.0,
+                'PKR': 14000.0,
+                'PHP': 2800.0,
             }
-            return fixed_minimums.get(currency_code, 100.0)
+            return fixed_minimums.get(currency_code, 50.0)
 
     def calculate_bid_priority(self, project: Dict) -> Tuple[int, str]:
         """Calculate priority with emphasis on quality"""
@@ -965,7 +976,7 @@ class AutoWorkMinimal:
             )
             
             if response.status_code != 200:
-                return {'is_good_client': False, 'reason': 'Could not fetch client data'}
+                return {'is_good_client': True, 'reason': 'Could not fetch client data - allowing'}
             
             data = response.json()
             user = data.get('result', {})
@@ -1000,9 +1011,9 @@ class AutoWorkMinimal:
                         'reason': 'Payment method verified (we want clients without payment methods for INR projects)'
                     }
             
-            # Additional checks for safety
+            # More lenient rating check for INR projects
             rating = user.get('rating', 0)
-            if rating > 0 and rating < 3.0:  # Very low rating threshold for INR projects
+            if rating > 0 and rating < 2.0:  # Very low rating threshold for INR projects
                 return {'is_good_client': False, 'reason': f'Very low rating ({rating})'}
             
             return {
@@ -1016,7 +1027,7 @@ class AutoWorkMinimal:
             
         except Exception as e:
             logging.warning(f"Error in INR client analysis: {e}")
-            return {'is_good_client': False, 'reason': 'Analysis failed'}
+            return {'is_good_client': True, 'reason': 'Analysis failed - allowing'}
 
     def should_bid_on_indian_project(self, project: Dict) -> Tuple[bool, str]:
         """Special filtering for Indian projects with specific requirements"""

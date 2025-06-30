@@ -11,37 +11,37 @@
   
   "smart_bidding": {
     "enabled": true,
-    "max_existing_bids": 20,
+    "max_existing_bids": 30,
     "early_bird_minutes": 30,
     "instant_bid_threshold": 5,
     "competitive_pricing": true,
     "undercut_percentage": 0.95,
-    "min_profitable_budget": 100
+    "min_profitable_budget": 50
   },
   
   "client_filtering": {
-    "enabled": true,
+    "enabled": false,
     "min_client_rating": 0,
     "min_completion_rate": 0,
     "min_projects_posted": 0,
-    "check_payment_verified": true,
-    "require_payment_method": true,
+    "check_payment_verified": false,
+    "require_payment_method": false,
     "require_deposit": false,
     "require_identity_verified": false,
-    "skip_phone_email_only": true
+    "skip_phone_email_only": false
   },
   
   "currency_filtering": {
     "enabled": true,
     "inr_pkr_strict_filtering": true,
-    "inr_minimum_budget": 15000.0,
+    "inr_minimum_budget": 8000.0,
     "pkr_minimum_budget": 69500.0,
     "require_payment_verified_for_inr_pkr": false,
     "require_identity_verified_for_inr_pkr": false,
     "skip_phone_email_only_for_inr_pkr": false,
     "indian_project_filters": {
       "enabled": true,
-      "min_inr_budget": 15000.0,
+      "min_inr_budget": 8000.0,
       "skip_payment_verified_clients": true,
       "skip_deposit_made_clients": true,
       "require_no_payment_method": true,
@@ -59,21 +59,21 @@
   
   "filtering": {
     "max_projects_per_cycle": 50,
-    "skip_projects_with_bids_above": 30,
-    "portfolio_matching": true,
-    "min_skill_match_score": 0.3,
-    "min_description_length": 100,
-    "prefer_long_term": true,
-    "required_keywords": ["requirements", "deliverables", "timeline", "budget"],
+    "skip_projects_with_bids_above": 50,
+    "portfolio_matching": false,
+    "min_skill_match_score": 0.1,
+    "min_description_length": 30,
+    "prefer_long_term": false,
+    "required_keywords": [],
     "avoid_keywords": ["urgent", "asap", "easy money", "guaranteed", "passive income"]
   },
   
   "quality_filters": {
     "enabled": true,
-    "min_quality_score": 45,
-    "min_description_words": 50,
-    "require_clear_requirements": true,
-    "avoid_vague_projects": true,
+    "min_quality_score": 20,
+    "min_description_words": 20,
+    "require_clear_requirements": false,
+    "avoid_vague_projects": false,
     "budget_weight": 0.35,
     "description_weight": 0.35,
     "client_weight": 0.1,
@@ -104,13 +104,13 @@
   "budget_preferences": {
     "preferred_ranges": {
       "fixed": {
-        "min": 150,
-        "ideal": 500,
+        "min": 50,
+        "ideal": 300,
         "max": 5000
       },
       "hourly": {
-        "min": 25,
-        "ideal": 50,
+        "min": 15,
+        "ideal": 30,
         "max": 150
       }
     },
@@ -124,8 +124,8 @@
     "off_hours_interval": 60,
     "error_retry_delay_seconds": 300,
     "max_consecutive_errors": 5,
-    "daily_bid_limit": 30,
-    "quality_bids_per_cycle": 5
+    "daily_bid_limit": 50,
+    "quality_bids_per_cycle": 10
   },
   
   "performance": {
