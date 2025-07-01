@@ -1158,7 +1158,7 @@ class AutoWorkMinimal:
             return False
 
     def calculate_bid_amount(self, project: Dict) -> float:
-        """Calculate appropriate bid amount for project"""
+        """Calculate appropriate bid amount - always bid at minimum budget"""
         budget = project.get('budget', {})
         min_budget = float(budget.get('minimum', 0))
         currency_code = project.get('currency', {}).get('code', 'USD')
@@ -1167,21 +1167,8 @@ class AutoWorkMinimal:
         if self.currency_converter and currency_code != 'USD':
             min_budget = self.currency_converter.to_usd(min_budget, currency_code)
         
-        # Apply multiplier based on project type
-        if self.is_elite_project(project):
-            multiplier = self.config['bidding']['bid_multiplier_elite']
-        else:
-            multiplier = self.config['bidding']['bid_multiplier_regular']
-        
-        bid_amount = min_budget * multiplier
-        
-        # Ensure minimum bid
-        if self.is_elite_project(project):
-            min_bid = self.config['bidding']['default_bid_elite']
-        else:
-            min_bid = self.config['bidding']['default_bid_regular']
-        
-        return max(bid_amount, min_bid)
+        # Always bid at the minimum budget amount
+        return min_budget
 
     def select_bid_message(self, project: Dict) -> str:
         """Select appropriate bid message for project"""

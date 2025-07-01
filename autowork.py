@@ -197,21 +197,11 @@ class AutoWork:
             await session.commit()
     
     def calculate_bid_amount(self, project: Dict) -> float:
-        """Calculate appropriate bid amount"""
+        """Calculate appropriate bid amount - always bid at minimum budget"""
         budget_min = project.get("budget", {}).get("minimum", 0)
-        budget_max = project.get("budget", {}).get("maximum", 0)
-        bid_count = project.get("bid_stats", {}).get("bid_count", 0)
         
-        # For very new projects, bid at minimum
-        if bid_count < 3:
-            return budget_min
-        
-        # For projects with some bids, bid slightly above minimum
-        if bid_count < 10:
-            return budget_min + (budget_max - budget_min) * 0.15
-        
-        # For competitive projects, bid at 20-30% range
-        return budget_min + (budget_max - budget_min) * 0.25
+        # Always bid at the minimum budget amount
+        return budget_min
     
     def generate_bid_description(self, project: Dict) -> str:
         """Generate bid description"""
