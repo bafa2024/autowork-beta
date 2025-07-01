@@ -16,7 +16,7 @@
     "instant_bid_threshold": 5,
     "competitive_pricing": true,
     "undercut_percentage": 0.95,
-    "min_profitable_budget": 50
+    "min_profitable_budget": 100
   },
   
   "client_filtering": {
@@ -34,14 +34,14 @@
   "currency_filtering": {
     "enabled": true,
     "inr_pkr_strict_filtering": true,
-    "inr_minimum_budget": 8000.0,
-    "pkr_minimum_budget": 69500.0,
+    "inr_minimum_budget": 12000.0,
+    "pkr_minimum_budget": 12000.0,
     "require_payment_verified_for_inr_pkr": false,
     "require_identity_verified_for_inr_pkr": false,
     "skip_phone_email_only_for_inr_pkr": false,
     "indian_project_filters": {
       "enabled": true,
-      "min_inr_budget": 8000.0,
+      "min_inr_budget": 12000.0,
       "skip_payment_verified_clients": true,
       "skip_deposit_made_clients": true,
       "require_no_payment_method": true,

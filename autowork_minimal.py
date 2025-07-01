@@ -143,7 +143,7 @@ class AutoWorkMinimal:
         
         logging.info("✓ Enhanced Bot initialized with ULTRA SIMPLE FILTERING")
         logging.info(f"✓ Filtering mode: ULTRA SIMPLE - Only budget requirements")
-        logging.info(f"✓ Minimum budget: $250 USD / ₹16000 INR / PKR 16000")
+        logging.info(f"✓ Minimum budget: $100 USD / ₹12000 INR / PKR 12000")
         logging.info(f"✓ Client filtering: DISABLED")
         logging.info(f"✓ Quality filtering: DISABLED")
         logging.info(f"✓ Spam filtering: DISABLED")
@@ -184,7 +184,7 @@ class AutoWorkMinimal:
                 "instant_bid_threshold": 5,
                 "competitive_pricing": True,
                 "undercut_percentage": 0.95,
-                "min_profitable_budget": 250  # $250 minimum
+                "min_profitable_budget": 100  # $100 minimum
             },
             "client_filtering": {
                 "enabled": False,  # DISABLED - no client filtering
@@ -200,8 +200,8 @@ class AutoWorkMinimal:
             "currency_filtering": {
                 "enabled": True,  # ENABLED - Only check minimum budgets
                 "inr_pkr_strict_filtering": False,  # Disabled - use simple budget check
-                "inr_minimum_budget": 16000.0,  # ₹16000 minimum
-                "pkr_minimum_budget": 16000.0,  # PKR 16000 minimum
+                "inr_minimum_budget": 12000.0,  # ₹12000 minimum
+                "pkr_minimum_budget": 12000.0,  # PKR 12000 minimum
                 "require_payment_verified_for_inr_pkr": False,  # Not required
                 "require_identity_verified_for_inr_pkr": False,  # Not required
                 "skip_phone_email_only_for_inr_pkr": False  # Allow all clients
@@ -272,17 +272,17 @@ class AutoWorkMinimal:
                 
                 # Check minimum budget based on currency
                 if currency_code == 'USD':
-                    min_required = 250.0  # $250 minimum
+                    min_required = 100.0  # $100 minimum
                     if min_budget < min_required:
                         self.skipped_projects['low_budget'] += 1
                         return False, f"Budget too low (${min_budget} < ${min_required})"
                 elif currency_code == 'INR':
-                    min_required = 16000.0  # ₹16000 minimum
+                    min_required = 12000.0  # ₹12000 minimum
                     if min_budget < min_required:
                         self.skipped_projects['low_budget'] += 1
                         return False, f"Budget too low (₹{min_budget} < ₹{min_required})"
                 elif currency_code == 'PKR':
-                    min_required = 16000.0  # PKR 16000 minimum
+                    min_required = 12000.0  # PKR 12000 minimum
                     if min_budget < min_required:
                         self.skipped_projects['low_budget'] += 1
                         return False, f"Budget too low (PKR {min_budget} < PKR {min_required})"
@@ -290,9 +290,9 @@ class AutoWorkMinimal:
                     # For other currencies, convert to USD and check
                     if self.currency_converter:
                         min_usd = self.currency_converter.to_usd(min_budget, currency_code)
-                        if min_usd < 250.0:
+                        if min_usd < 100.0:
                             self.skipped_projects['low_budget'] += 1
-                            return False, f"Budget too low (${min_usd:.2f} < $250.00)"
+                            return False, f"Budget too low (${min_usd:.2f} < $100.00)"
                     else:
                         # If no converter, allow the project
                         pass
@@ -458,7 +458,7 @@ class AutoWorkMinimal:
                     if min_usd >= 500:
                         score += 30
                         reasons.append("💰 Premium budget")
-                    elif min_usd >= 250:
+                    elif min_usd >= 100:
                         score += 15
                         reasons.append("💵 Good budget")
             
@@ -524,7 +524,7 @@ class AutoWorkMinimal:
         logging.info("🚀 Starting Enhanced AutoWork Bot - ULTRA SIMPLE FILTERING MODE...")
         logging.info(f"User ID: {self.user_id}")
         logging.info(f"Filtering Mode: ULTRA SIMPLE - Only budget requirements")
-        logging.info(f"Minimum Budget: $250 USD / ₹16000 INR / PKR 16000")
+        logging.info(f"Minimum Budget: $100 USD / ₹12000 INR / PKR 12000")
         logging.info(f"No other filters applied")
         logging.info(f"Smart Features: Enabled")
         

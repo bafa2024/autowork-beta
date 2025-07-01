@@ -217,7 +217,7 @@ class AutoWork:
         
         if budget < 100:
             return 3
-        elif budget < 250:
+        elif budget < 200:
             return 5
         elif budget < 500:
             return 7

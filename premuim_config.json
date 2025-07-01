@@ -46,7 +46,7 @@
   
   "quality_filters": {
     "enabled": true,
-    "min_project_budget": 250,
+    "min_project_budget": 100,
     "preferred_budget_range": {
       "min": 500,
       "max": 5000
