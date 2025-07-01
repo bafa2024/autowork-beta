@@ -141,10 +141,10 @@ class AutoWorkMinimal:
         # Load state from Redis
         self.load_state_from_redis()
         
-        logging.info("✓ Enhanced Bot initialized with LOOSE FILTERING")
-        logging.info(f"✓ Filtering mode: LOOSE - Only budget and payment requirements")
+        logging.info("✓ Enhanced Bot initialized with ULTRA SIMPLE FILTERING")
+        logging.info(f"✓ Filtering mode: ULTRA SIMPLE - Only budget requirements")
         logging.info(f"✓ Minimum budget: $250 USD / ₹16000 INR / PKR 16000")
-        logging.info(f"✓ Payment requirement: Verified OR deposit made")
+        logging.info(f"✓ Client filtering: DISABLED")
         logging.info(f"✓ Quality filtering: DISABLED")
         logging.info(f"✓ Spam filtering: DISABLED")
         logging.info(f"✓ Skill matching: DISABLED")
@@ -187,13 +187,13 @@ class AutoWorkMinimal:
                 "min_profitable_budget": 250  # $250 minimum
             },
             "client_filtering": {
-                "enabled": True,  # ENABLED - Only check payment/deposit
+                "enabled": False,  # DISABLED - no client filtering
                 "min_client_rating": 0.0,  # No rating requirement
                 "min_completion_rate": 0.0,  # No completion rate requirement
                 "min_projects_posted": 0,  # No project count requirement
-                "check_payment_verified": True,  # Must have payment verified OR deposit
+                "check_payment_verified": False,  # Not required
                 "require_payment_method": False,  # Not required
-                "require_deposit": False,  # Not required (either payment verified OR deposit)
+                "require_deposit": False,  # Not required
                 "require_identity_verified": False,  # Not required
                 "skip_phone_email_only": False  # Allow all clients
             },
@@ -202,7 +202,7 @@ class AutoWorkMinimal:
                 "inr_pkr_strict_filtering": False,  # Disabled - use simple budget check
                 "inr_minimum_budget": 16000.0,  # ₹16000 minimum
                 "pkr_minimum_budget": 16000.0,  # PKR 16000 minimum
-                "require_payment_verified_for_inr_pkr": True,  # Must have payment verified OR deposit
+                "require_payment_verified_for_inr_pkr": False,  # Not required
                 "require_identity_verified_for_inr_pkr": False,  # Not required
                 "skip_phone_email_only_for_inr_pkr": False  # Allow all clients
             },
@@ -251,7 +251,7 @@ class AutoWorkMinimal:
         }
 
     def should_bid_on_project(self, project: Dict) -> Tuple[bool, str]:
-        """Simple filtering - only check minimum budget and payment verification/deposit"""
+        """Ultra simple filtering - only check minimum budget requirements"""
         try:
             project_id = project.get('id')
             
@@ -264,7 +264,7 @@ class AutoWorkMinimal:
                 self.skipped_projects['invalid_data'] += 1
                 return False, "Invalid project data"
             
-            # BUDGET CHECK - Check minimum budget requirements
+            # BUDGET CHECK - Only check minimum budget requirements
             budget = project.get('budget', {})
             if isinstance(budget, dict):
                 min_budget = float(budget.get('minimum', 0))
@@ -300,17 +300,9 @@ class AutoWorkMinimal:
                 self.skipped_projects['invalid_data'] += 1
                 return False, "No budget information"
             
-            # PAYMENT VERIFICATION CHECK - Must have payment verified OR deposit made
-            employer_id = project.get('owner_id')
-            if employer_id:
-                client_analysis = self.analyze_client_simple(employer_id)
-                if not client_analysis.get('is_good_client', True):
-                    self.skipped_projects['bad_client'] += 1
-                    return False, f"Payment verification failed: {client_analysis.get('reason', 'Unknown')}"
-            
-            # All checks passed
+            # All checks passed - only budget requirement
             self.passed_filter_count += 1
-            return True, f"Project passed budget and payment checks (Budget: {currency_code} {min_budget})"
+            return True, f"Project passed budget check (Budget: {currency_code} {min_budget})"
             
         except Exception as e:
             logging.error(f"Error in should_bid_on_project: {e}")
@@ -528,12 +520,12 @@ class AutoWorkMinimal:
                     logging.info(f"  {reason.replace('_', ' ').title()}: {count} ({percentage:.1f}%)")
 
     def realtime_monitor_with_bidding(self):
-        """Monitor and bid on projects with loose filtering - only budget and payment requirements"""
-        logging.info("🚀 Starting Enhanced AutoWork Bot - LOOSE FILTERING MODE...")
+        """Monitor and bid on projects with ultra simple filtering - only budget requirements"""
+        logging.info("🚀 Starting Enhanced AutoWork Bot - ULTRA SIMPLE FILTERING MODE...")
         logging.info(f"User ID: {self.user_id}")
-        logging.info(f"Filtering Mode: LOOSE - Only budget and payment requirements")
+        logging.info(f"Filtering Mode: ULTRA SIMPLE - Only budget requirements")
         logging.info(f"Minimum Budget: $250 USD / ₹16000 INR / PKR 16000")
-        logging.info(f"Payment Requirement: Verified OR deposit made")
+        logging.info(f"No other filters applied")
         logging.info(f"Smart Features: Enabled")
         
         error_count = 0
@@ -542,7 +534,7 @@ class AutoWorkMinimal:
         
         # Update Redis status
         if self.redis_client:
-            self.redis_client.set('bot_status', 'Running - Filtered Quality Mode')
+            self.redis_client.set('bot_status', 'Running - Ultra Simple Filtering Mode')
             self.redis_client.set('bot_start_time', self.start_time.isoformat())
         
         while True:
@@ -561,11 +553,11 @@ class AutoWorkMinimal:
                 projects = self.get_active_projects(limit=self.config['filtering']['max_projects_per_cycle'])
                 
                 if projects:
-                    logging.info(f"\n🔄 Cycle {cycle_count}: Analyzing {len(projects)} projects for quality")
+                    logging.info(f"\n🔄 Cycle {cycle_count}: Analyzing {len(projects)} projects for budget requirements")
                     
                     new_bids = 0
                     projects_analyzed = 0
-                    quality_projects = 0
+                    budget_approved_projects = 0
                     
                     # Process each project
                     for project in projects:
@@ -578,7 +570,7 @@ class AutoWorkMinimal:
                         projects_analyzed += 1
                         self.filtered_projects_count += 1
                         
-                        # Check if should bid (strict filtering)
+                        # Check if should bid (ultra simple filtering)
                         should_bid, reason = self.should_bid_on_project(project)
                         
                         if not should_bid:
@@ -586,11 +578,11 @@ class AutoWorkMinimal:
                             self.processed_projects.add(project_id)
                             continue
                         
-                        quality_projects += 1
+                        budget_approved_projects += 1
                         
-                        # Place bid on quality project
+                        # Place bid on approved project
                         logging.info(f"\n{'='*60}")
-                        logging.info(f"✅ QUALITY PROJECT FOUND: {project.get('title', 'Unknown')[:50]}...")
+                        logging.info(f"✅ PROJECT APPROVED: {project.get('title', 'Unknown')[:50]}...")
                         
                         success = self.place_bid(project)
                         
@@ -610,18 +602,18 @@ class AutoWorkMinimal:
                             time.sleep(delay)
                         
                         # Stop if we've bid enough this cycle
-                        if new_bids >= 5:  # Max 5 quality bids per cycle
-                            logging.info("📊 Reached cycle bid limit (5 quality bids)")
+                        if new_bids >= 5:  # Max 5 bids per cycle
+                            logging.info("📊 Reached cycle bid limit (5 bids)")
                             break
                     
                     # Log cycle summary
                     if projects_analyzed > 0:
-                        quality_rate = (quality_projects / projects_analyzed * 100)
+                        approval_rate = (budget_approved_projects / projects_analyzed * 100)
                         logging.info(f"\n📊 Cycle Summary:")
                         logging.info(f"   Projects analyzed: {projects_analyzed}")
-                        logging.info(f"   Quality projects found: {quality_projects} ({quality_rate:.1f}%)")
+                        logging.info(f"   Budget approved projects: {budget_approved_projects} ({approval_rate:.1f}%)")
                         logging.info(f"   Bids placed: {new_bids}")
-                        logging.info(f"   Filtered out: {projects_analyzed - quality_projects}")
+                        logging.info(f"   Filtered out: {projects_analyzed - budget_approved_projects}")
                     else:
                         logging.info("No new projects to analyze")
                     
