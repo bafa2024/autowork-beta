@@ -23,7 +23,9 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 class AutoWorkMinimal:
     def __init__(self):
         self.token = self.load_token()
-        self.user_id = os.environ.get('FREELANCER_USER_ID', '45214417')
+        # Convert user_id to integer to fix bid placement error
+        user_id_str = os.environ.get('FREELANCER_USER_ID', '45214417')
+        self.user_id = int(user_id_str)
         self.api_base = "https://www.freelancer.com/api"
         self.headers = {
             "Freelancer-OAuth-V1": self.token,
@@ -1132,15 +1134,23 @@ class AutoWorkMinimal:
             # Select bid message
             message = self.select_bid_message(project)
             
+            # Ensure user_id is integer
+            bidder_id = int(self.user_id)
+            
             # Prepare bid data
             bid_data = {
-                'project_id': project_id,
-                'bidder_id': self.user_id,
-                'amount': bid_amount,
-                'period': self.config['bidding']['delivery_days'],
+                'project_id': int(project_id),
+                'bidder_id': bidder_id,
+                'amount': float(bid_amount),
+                'period': int(self.config['bidding']['delivery_days']),
                 'milestone_percentage': 100,
-                'description': message
+                'description': str(message)
             }
+            
+            logging.info(f"Placing bid on project {project_id}:")
+            logging.info(f"  Bidder ID: {bidder_id} (type: {type(bidder_id)})")
+            logging.info(f"  Amount: ${bid_amount}")
+            logging.info(f"  Period: {self.config['bidding']['delivery_days']} days")
             
             # Place bid
             response = requests.post(
@@ -1169,10 +1179,13 @@ class AutoWorkMinimal:
                 return True
             else:
                 logging.error(f"Bid failed: {response.status_code} - {response.text}")
+                logging.error(f"Request data: {bid_data}")
                 return False
                 
         except Exception as e:
             logging.error(f"Error placing bid: {e}")
+            logging.error(f"Project ID: {project.get('id')}")
+            logging.error(f"User ID: {self.user_id} (type: {type(self.user_id)})")
             return False
 
     def calculate_bid_amount(self, project: Dict) -> float:
