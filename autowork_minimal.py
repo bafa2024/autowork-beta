@@ -171,7 +171,7 @@ class AutoWorkMinimal:
             "bidding": {
                 "delivery_days": 3,
                 "express_delivery_days": 2,
-                "min_bid_delay_seconds": 10,
+                "min_bid_delay_seconds": 60,  # Increased from 10 to 60 seconds
                 "bid_multiplier_regular": 1.15,
                 "bid_multiplier_elite": 1.25,
                 "default_bid_regular": 150,
@@ -233,12 +233,12 @@ class AutoWorkMinimal:
                 "save_spam_projects": False
             },
             "monitoring": {
-                "check_interval_seconds": 30,
-                "peak_hours_interval": 20,
-                "off_hours_interval": 60,
+                "check_interval_seconds": 120,  # Increased from 30 to 120 seconds
+                "peak_hours_interval": 90,  # Increased from 20 to 90 seconds
+                "off_hours_interval": 180,  # Increased from 60 to 180 seconds
                 "error_retry_delay_seconds": 300,
                 "max_consecutive_errors": 5,
-                "daily_bid_limit": 100  # Higher daily limit
+                "daily_bid_limit": 50  # Reduced from 100 to 50
             },
             "performance": {
                 "track_analytics": True,
@@ -589,21 +589,15 @@ class AutoWorkMinimal:
                         if success:
                             new_bids += 1
                             
-                            # Smart delay based on priority
-                            priority_score, _ = self.calculate_bid_priority(project)
-                            if priority_score > 150:
-                                delay = 5  # Fast for high priority
-                            elif priority_score > 100:
-                                delay = 8
-                            else:
-                                delay = 10
+                            # Use configuration delay instead of smart delay
+                            delay = self.config['bidding']['min_bid_delay_seconds']
                             
                             logging.info(f"⏳ Waiting {delay} seconds before next bid...")
                             time.sleep(delay)
                         
                         # Stop if we've bid enough this cycle
-                        if new_bids >= 5:  # Max 5 bids per cycle
-                            logging.info("📊 Reached cycle bid limit (5 bids)")
+                        if new_bids >= 3:  # Reduced from 5 to 3 bids per cycle
+                            logging.info("📊 Reached cycle bid limit (3 bids)")
                             break
                     
                     # Log cycle summary
@@ -1053,10 +1047,43 @@ class AutoWorkMinimal:
             logging.error(f"Error fetching projects: {e}")
             return []
 
+    def is_rate_limited(self) -> bool:
+        """Check if we're currently rate limited"""
+        if not self.redis_client:
+            return False
+        
+        try:
+            last_bid_time = self.redis_client.get('last_bid_time')
+            if last_bid_time:
+                last_bid = datetime.fromisoformat(last_bid_time)
+                time_since_last_bid = (datetime.now() - last_bid).total_seconds()
+                
+                # Rate limit: max 1 bid per 60 seconds (increased from 30)
+                if time_since_last_bid < 60:
+                    return True
+            
+            return False
+        except Exception as e:
+            logging.warning(f"Error checking rate limit: {e}")
+            return False
+
+    def set_rate_limit_timestamp(self):
+        """Set timestamp for rate limiting"""
+        if self.redis_client:
+            try:
+                self.redis_client.set('last_bid_time', datetime.now().isoformat())
+            except Exception as e:
+                logging.warning(f"Error setting rate limit timestamp: {e}")
+
     def place_bid(self, project: Dict) -> bool:
-        """Place a bid on a project"""
+        """Place a bid on a project with rate limiting"""
         try:
             project_id = project.get('id')
+            
+            # Check if we're rate limited
+            if self.is_rate_limited():
+                logging.warning("Rate limit detected - waiting before placing bid...")
+                time.sleep(60)  # Wait 1 minute if rate limited
             
             # Calculate bid amount
             bid_amount = self.calculate_bid_amount(project)
@@ -1106,7 +1133,19 @@ class AutoWorkMinimal:
                 # Track performance
                 self.track_bid_performance(project, bid_amount, True)
                 
+                # Set rate limit timestamp
+                self.set_rate_limit_timestamp()
+                
                 return True
+            elif response.status_code == 429:
+                logging.error(f"Rate limit hit: {response.status_code} - {response.text}")
+                self.set_rate_limit_timestamp()
+                
+                # Wait longer for rate limit
+                wait_time = 120  # 2 minutes
+                logging.info(f"Waiting {wait_time} seconds due to rate limit...")
+                time.sleep(wait_time)
+                return False
             else:
                 logging.error(f"Bid failed: {response.status_code} - {response.text}")
                 logging.error(f"Request data: {bid_data}")
