@@ -141,13 +141,13 @@ class AutoWorkMinimal:
         # Load state from Redis
         self.load_state_from_redis()
         
-        logging.info("✓ Enhanced Bot initialized with SMART FILTERING")
-        logging.info(f"✓ Filtering mode: STRICT - Only quality projects")
-        logging.info(f"✓ Client verification: {'ENABLED' if self.config['client_filtering']['enabled'] else 'DISABLED'}")
-        logging.info(f"✓ Currency filtering: {'ENABLED' if self.config['currency_filtering']['enabled'] else 'DISABLED'}")
-        logging.info(f"✓ Spam filtering: {'ENABLED' if self.spam_filter_enabled else 'DISABLED'}")
-        logging.info(f"✓ Skill matching: {'ENABLED' if self.config['filtering']['portfolio_matching'] else 'DISABLED'}")
-        logging.info(f"✓ Quality filtering: ENABLED")
+        logging.info("✓ Enhanced Bot initialized with LOOSE FILTERING")
+        logging.info(f"✓ Filtering mode: LOOSE - Only budget and payment requirements")
+        logging.info(f"✓ Minimum budget: $250 USD / ₹16000 INR / PKR 16000")
+        logging.info(f"✓ Payment requirement: Verified OR deposit made")
+        logging.info(f"✓ Quality filtering: DISABLED")
+        logging.info(f"✓ Spam filtering: DISABLED")
+        logging.info(f"✓ Skill matching: DISABLED")
         
         # Verify token on startup
         if not self.verify_token_on_startup():
@@ -166,7 +166,7 @@ class AutoWorkMinimal:
             except Exception as e:
                 logging.error(f"Error loading config: {e}")
         
-        # Default configuration with STRICT filtering for quality projects
+        # Default configuration with LOOSE filtering - only budget and payment requirements
         return {
             "bidding": {
                 "delivery_days": 3,
@@ -179,57 +179,57 @@ class AutoWorkMinimal:
             },
             "smart_bidding": {
                 "enabled": True,
-                "max_existing_bids": 20,  # Reasonable limit
+                "max_existing_bids": 50,  # Much higher limit
                 "early_bird_minutes": 30,
                 "instant_bid_threshold": 5,
                 "competitive_pricing": True,
                 "undercut_percentage": 0.95,
-                "min_profitable_budget": 100  # Higher minimum for quality
+                "min_profitable_budget": 250  # $250 minimum
             },
             "client_filtering": {
-                "enabled": True,  # ENABLED - Filter bad clients
-                "min_client_rating": 4.0,  # Good rating required
-                "min_completion_rate": 0.8,  # Good completion rate
-                "min_projects_posted": 2,
-                "check_payment_verified": True,
-                "require_payment_method": True,
-                "require_deposit": False,
-                "require_identity_verified": False,
-                "skip_phone_email_only": True
+                "enabled": True,  # ENABLED - Only check payment/deposit
+                "min_client_rating": 0.0,  # No rating requirement
+                "min_completion_rate": 0.0,  # No completion rate requirement
+                "min_projects_posted": 0,  # No project count requirement
+                "check_payment_verified": True,  # Must have payment verified OR deposit
+                "require_payment_method": False,  # Not required
+                "require_deposit": False,  # Not required (either payment verified OR deposit)
+                "require_identity_verified": False,  # Not required
+                "skip_phone_email_only": False  # Allow all clients
             },
             "currency_filtering": {
-                "enabled": True,  # ENABLED - Filter currencies
-                "inr_pkr_strict_filtering": True,
-                "inr_minimum_budget": 20000.0,
-                "pkr_minimum_budget": 69500.0,
-                "require_payment_verified_for_inr_pkr": True,
-                "require_identity_verified_for_inr_pkr": True,
-                "skip_phone_email_only_for_inr_pkr": True
+                "enabled": True,  # ENABLED - Only check minimum budgets
+                "inr_pkr_strict_filtering": False,  # Disabled - use simple budget check
+                "inr_minimum_budget": 16000.0,  # ₹16000 minimum
+                "pkr_minimum_budget": 16000.0,  # PKR 16000 minimum
+                "require_payment_verified_for_inr_pkr": True,  # Must have payment verified OR deposit
+                "require_identity_verified_for_inr_pkr": False,  # Not required
+                "skip_phone_email_only_for_inr_pkr": False  # Allow all clients
             },
             "elite_projects": {
                 "auto_sign_nda": True,
                 "auto_sign_ip_agreement": True,
                 "track_elite_stats": True,
-                "prefer_elite": True
+                "prefer_elite": False  # No preference
             },
             "filtering": {
-                "max_projects_per_cycle": 50,
-                "skip_projects_with_bids_above": 30,  # Reasonable competition
-                "portfolio_matching": True,  # Match our skills
-                "min_skill_match_score": 0.3,  # Require some skill match
-                "min_description_length": 100,  # Require decent description
-                "prefer_long_term": True
+                "max_projects_per_cycle": 100,  # Higher limit
+                "skip_projects_with_bids_above": 100,  # Much higher competition limit
+                "portfolio_matching": False,  # Disabled - bid on any project
+                "min_skill_match_score": 0.0,  # No skill match requirement
+                "min_description_length": 0,  # No description length requirement
+                "prefer_long_term": False  # No preference
             },
             "quality_filters": {
-                "enabled": True,
-                "min_quality_score": 50,  # Minimum quality threshold
-                "min_description_words": 50,
-                "require_clear_requirements": True,
-                "avoid_vague_projects": True
+                "enabled": False,  # DISABLED - no quality filtering
+                "min_quality_score": 0,  # No quality score requirement
+                "min_description_words": 0,  # No word count requirement
+                "require_clear_requirements": False,  # Not required
+                "avoid_vague_projects": False  # Allow vague projects
             },
             "spam_filter": {
-                "enabled": True,
-                "log_spam_reasons": True,
+                "enabled": False,  # DISABLED - no spam filtering
+                "log_spam_reasons": False,
                 "save_spam_projects": False
             },
             "monitoring": {
@@ -238,7 +238,7 @@ class AutoWorkMinimal:
                 "off_hours_interval": 60,
                 "error_retry_delay_seconds": 300,
                 "max_consecutive_errors": 5,
-                "daily_bid_limit": 50
+                "daily_bid_limit": 100  # Higher daily limit
             },
             "performance": {
                 "track_analytics": True,
@@ -246,12 +246,12 @@ class AutoWorkMinimal:
                 "analyze_every_n_cycles": 10
             },
             "premium_mode": {
-                "enabled": False  # Enable if you want only premium projects
+                "enabled": False  # Disabled
             }
         }
 
     def should_bid_on_project(self, project: Dict) -> Tuple[bool, str]:
-        """Enhanced filtering to bid only on quality projects"""
+        """Simple filtering - only check minimum budget and payment verification/deposit"""
         try:
             project_id = project.get('id')
             
@@ -264,116 +264,53 @@ class AutoWorkMinimal:
                 self.skipped_projects['invalid_data'] += 1
                 return False, "Invalid project data"
             
-            # SPAM CHECK - Filter spam projects
-            if self.spam_filter_enabled and self.spam_filter:
-                is_spam, spam_reasons = self.spam_filter.is_spam(project)
-                if is_spam:
-                    self.skipped_projects['spam'] += 1
-                    logging.warning(f"🚫 SPAM DETECTED: {project.get('title', '')[:50]}...")
-                    logging.warning(f"   Reasons: {', '.join(spam_reasons[:3])}")
-                    self.processed_projects.add(project_id)
-                    return False, f"Spam: {spam_reasons[0]}"
-            
-            # QUALITY CHECK - Filter low quality projects
-            quality_score = self.calculate_project_quality_score(project)
-            min_quality = self.config.get('quality_filters', {}).get('min_quality_score', 50)
-            if quality_score < min_quality:
-                self.skipped_projects['low_quality'] += 1
-                logging.info(f"📊 Low quality project (score: {quality_score}): {project.get('title', '')[:50]}...")
-                return False, f"Low quality score ({quality_score} < {min_quality})"
-            
-            # DESCRIPTION CHECK - Filter projects with poor descriptions
-            description = project.get('description', '')
-            min_words = self.config.get('quality_filters', {}).get('min_description_words', 50)
-            word_count = len(description.split())
-            if word_count < min_words:
-                self.skipped_projects['poor_description'] += 1
-                return False, f"Description too short ({word_count} words < {min_words})"
-            
-            # BID COUNT CHECK - Filter overcrowded projects
-            bid_stats = project.get('bid_stats', {})
-            if isinstance(bid_stats, dict):
-                bid_count = bid_stats.get('bid_count', 0)
-            else:
-                bid_count = 0
-            
-            max_bids = self.config['filtering']['skip_projects_with_bids_above']
-            if bid_count > max_bids:
-                self.skipped_projects['too_many_bids'] += 1
-                return False, f"Too many bids ({bid_count} > {max_bids})"
-            
-            # BUDGET CHECK - Filter low budget projects
+            # BUDGET CHECK - Check minimum budget requirements
             budget = project.get('budget', {})
             if isinstance(budget, dict):
                 min_budget = float(budget.get('minimum', 0))
                 currency_code = project.get('currency', {}).get('code', 'USD')
-                budget_type = budget.get('type', 'fixed').lower()
                 
-                # Get minimum required for currency and type
-                min_required = self.get_minimum_budget_for_currency(currency_code, budget_type)
-                
-                # Apply stricter check for quality
-                quality_min = self.config['smart_bidding']['min_profitable_budget']
-                if self.currency_converter:
-                    min_usd = self.currency_converter.to_usd(min_budget, currency_code)
-                    if min_usd < quality_min:
+                # Check minimum budget based on currency
+                if currency_code == 'USD':
+                    min_required = 250.0  # $250 minimum
+                    if min_budget < min_required:
                         self.skipped_projects['low_budget'] += 1
-                        return False, f"Budget too low (${min_usd:.2f} < ${quality_min})"
-                elif min_budget < min_required:
-                    self.skipped_projects['low_budget'] += 1
-                    return False, f"Budget too low ({currency_code} {min_budget} < {min_required})"
+                        return False, f"Budget too low (${min_budget} < ${min_required})"
+                elif currency_code == 'INR':
+                    min_required = 16000.0  # ₹16000 minimum
+                    if min_budget < min_required:
+                        self.skipped_projects['low_budget'] += 1
+                        return False, f"Budget too low (₹{min_budget} < ₹{min_required})"
+                elif currency_code == 'PKR':
+                    min_required = 16000.0  # PKR 16000 minimum
+                    if min_budget < min_required:
+                        self.skipped_projects['low_budget'] += 1
+                        return False, f"Budget too low (PKR {min_budget} < PKR {min_required})"
+                else:
+                    # For other currencies, convert to USD and check
+                    if self.currency_converter:
+                        min_usd = self.currency_converter.to_usd(min_budget, currency_code)
+                        if min_usd < 250.0:
+                            self.skipped_projects['low_budget'] += 1
+                            return False, f"Budget too low (${min_usd:.2f} < $250.00)"
+                    else:
+                        # If no converter, allow the project
+                        pass
             else:
                 self.skipped_projects['invalid_data'] += 1
                 return False, "No budget information"
             
-            # INDIAN PROJECT FILTERING - Special handling for INR projects
-            if currency_code == 'INR':
-                should_bid, reason = self.should_bid_on_indian_project(project)
-                if not should_bid:
-                    self.skipped_projects['indian_filtered'] += 1
-                    return False, f"Indian project filtered: {reason}"
-                else:
-                    logging.info(f"🇮🇳 INR Project Approved: {project.get('title', 'Unknown')[:50]}... - {reason}")
+            # PAYMENT VERIFICATION CHECK - Must have payment verified OR deposit made
+            employer_id = project.get('owner_id')
+            if employer_id:
+                client_analysis = self.analyze_client_simple(employer_id)
+                if not client_analysis.get('is_good_client', True):
+                    self.skipped_projects['bad_client'] += 1
+                    return False, f"Payment verification failed: {client_analysis.get('reason', 'Unknown')}"
             
-            # CLIENT VERIFICATION - Filter bad clients
-            if self.config['client_filtering']['enabled']:
-                employer_id = project.get('owner_id')
-                if employer_id:
-                    # Special check for INR/PKR currencies
-                    if currency_code in ['INR', 'PKR'] and self.config['currency_filtering']['inr_pkr_strict_filtering']:
-                        client_analysis = self.analyze_client_for_inr_pkr(employer_id)
-                    else:
-                        client_analysis = self.analyze_client(employer_id)
-                    
-                    if not client_analysis.get('is_good_client', True):
-                        self.skipped_projects['bad_client'] += 1
-                        return False, f"Client verification failed: {client_analysis.get('reason', 'Unknown')}"
-            
-            # SKILL MATCH CHECK - Ensure project matches our skills
-            if self.config['filtering']['portfolio_matching']:
-                match_score = self.calculate_skill_match(project)
-                min_skill_match = self.config['filtering']['min_skill_match_score']
-                if match_score < min_skill_match:
-                    self.skipped_projects['skills_mismatch'] += 1
-                    return False, f"Poor skill match ({match_score:.2f} < {min_skill_match})"
-            
-            # TITLE CHECK - Filter suspicious titles
-            title = project.get('title', '').lower()
-            suspicious_words = ['urgent', 'asap', 'easy money', 'data entry', 'copy paste']
-            if any(word in title for word in suspicious_words):
-                self.skipped_projects['suspicious_title'] += 1
-                return False, "Suspicious title keywords"
-            
-            # PREMIUM CHECK - If premium mode, only allow premium projects
-            if self.premium_mode and self.premium_filter:
-                is_premium, premium_score, factors = self.premium_filter.is_premium_project(project)
-                if not is_premium:
-                    self.skipped_projects['not_premium'] += 1
-                    return False, f"Not a premium project (score: {premium_score})"
-            
-            # All filters passed
+            # All checks passed
             self.passed_filter_count += 1
-            return True, f"Quality project passed all filters (score: {quality_score})"
+            return True, f"Project passed budget and payment checks (Budget: {currency_code} {min_budget})"
             
         except Exception as e:
             logging.error(f"Error in should_bid_on_project: {e}")
@@ -591,11 +528,12 @@ class AutoWorkMinimal:
                     logging.info(f"  {reason.replace('_', ' ').title()}: {count} ({percentage:.1f}%)")
 
     def realtime_monitor_with_bidding(self):
-        """Monitor and bid only on filtered quality projects"""
-        logging.info("🚀 Starting Enhanced AutoWork Bot - FILTERED BIDDING MODE...")
+        """Monitor and bid on projects with loose filtering - only budget and payment requirements"""
+        logging.info("🚀 Starting Enhanced AutoWork Bot - LOOSE FILTERING MODE...")
         logging.info(f"User ID: {self.user_id}")
-        logging.info(f"Filtering Mode: STRICT - Quality Projects Only")
-        logging.info(f"Quality Threshold: {self.config.get('quality_filters', {}).get('min_quality_score', 50)}")
+        logging.info(f"Filtering Mode: LOOSE - Only budget and payment requirements")
+        logging.info(f"Minimum Budget: $250 USD / ₹16000 INR / PKR 16000")
+        logging.info(f"Payment Requirement: Verified OR deposit made")
         logging.info(f"Smart Features: Enabled")
         
         error_count = 0
@@ -721,7 +659,7 @@ class AutoWorkMinimal:
                 # Show status
                 if self.bid_count > 0:
                     win_rate = (self.wins_count / self.bid_count * 100)
-                    logging.info(f"\n📈 Status: {self.bid_count} bids | {win_rate:.1f}% wins | {self.passed_filter_count} quality projects found")
+                    logging.info(f"\n📈 Status: {self.bid_count} bids | {win_rate:.1f}% wins | {self.passed_filter_count} projects passed filters")
                 
                 logging.info(f"💤 Waiting {wait_time} seconds until next cycle...")
                 time.sleep(wait_time)
@@ -1260,6 +1198,44 @@ class AutoWorkMinimal:
             self.bids_today = 0
             self.today_date = datetime.now().date()
             logging.info("📅 Daily stats reset")
+
+    def analyze_client_simple(self, employer_id: int) -> Dict:
+        """Simple client analysis - only check payment verification or deposit"""
+        try:
+            response = requests.get(
+                f"{self.api_base}/users/0.1/users/{employer_id}",
+                headers=self.headers
+            )
+            
+            if response.status_code != 200:
+                return {'is_good_client': True, 'reason': 'Could not fetch client data - allowing'}
+            
+            data = response.json()
+            user = data.get('result', {})
+            status = user.get('status', {})
+            
+            # Check if payment is verified OR deposit is made
+            payment_verified = status.get('payment_verified', False)
+            deposit_made = status.get('deposit_made', False)
+            
+            if payment_verified or deposit_made:
+                return {
+                    'is_good_client': True,
+                    'reason': f"Payment verified: {payment_verified}, Deposit made: {deposit_made}",
+                    'payment_verified': payment_verified,
+                    'deposit_made': deposit_made
+                }
+            else:
+                return {
+                    'is_good_client': False,
+                    'reason': 'Neither payment verified nor deposit made',
+                    'payment_verified': payment_verified,
+                    'deposit_made': deposit_made
+                }
+            
+        except Exception as e:
+            logging.warning(f"Error in simple client analysis: {e}")
+            return {'is_good_client': True, 'reason': 'Analysis failed - allowing'}
 
 if __name__ == "__main__":
     bot = AutoWorkMinimal()
