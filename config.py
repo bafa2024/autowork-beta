@@ -44,35 +44,11 @@ class Settings(BaseSettings):
     
     # Bid templates
     bid_templates: List[str] = [
-        """Hello, see the message below:
-
-Dear Client,
-
-I have carefully reviewed your project requirements for {project_title}. With my expertise in {skills}, I can deliver high-quality results within {days} days.
-
-I have successfully completed similar projects with excellent client feedback. I would be happy to discuss your specific needs in detail.
-
-Best regards.""",
+        """Hello, I liked your project for the {project_title}, which aligns perfectly with my professional expertise. I bring extensive experience in {skills}, I can ensure timely delivery within {days} days. I'm committed to exceeding your expectations and would welcome the opportunity to discuss your requirements in detail.""",
         
-        """Hello, see the message below:
-
-Dear Hiring Manager,
-
-Your project for {project_title} aligns perfectly with my professional expertise. I bring extensive experience in {skills} and can ensure timely delivery within {days} days.
-
-I'm committed to exceeding your expectations and would welcome the opportunity to discuss your requirements further.
-
-Sincerely.""",
+        """Hello, I liked your project for the {project_title}, which aligns perfectly with my professional expertise. I bring extensive experience in {skills}, I can ensure timely delivery within {days} days. I'm committed to exceeding your expectations and would welcome the opportunity to discuss your requirements in detail.""",
         
-        """Hello, see the message below:
-
-Good day,
-
-I've thoroughly analyzed your requirements for {project_title}. My proven track record in {skills} positions me as an ideal candidate for this project.
-
-I guarantee professional execution within {days} days and look forward to contributing to your success.
-
-Best regards."""
+        """Hello, I liked your project for the {project_title}, which aligns perfectly with my professional expertise. I bring extensive experience in {skills}, I can ensure timely delivery within {days} days. I'm committed to exceeding your expectations and would welcome the opportunity to discuss your requirements in detail."""
     ]
 
 settings = Settings()
