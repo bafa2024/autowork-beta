@@ -207,9 +207,15 @@ class AutoWork:
         """Generate bid description"""
         skills = [job["name"] for job in project.get("jobs", [])][:3]
         skills_text = ", ".join(skills)
+        project_title = project.get("title", "your project")
+        delivery_days = self.estimate_project_duration(project)
         
         template = random.choice(settings.bid_templates)
-        return template.format(skills=skills_text)
+        return template.format(
+            skills=skills_text,
+            project_title=project_title,
+            days=delivery_days
+        )
     
     def estimate_project_duration(self, project: Dict) -> int:
         """Estimate project duration in days"""

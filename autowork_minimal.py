@@ -1183,7 +1183,12 @@ class AutoWorkMinimal:
         
         # Replace placeholders
         skills = ', '.join([job.get('name', '') for job in project.get('jobs', [])[:3]])
+        project_title = project.get('title', 'your project')
+        delivery_days = self.config['bidding']['delivery_days']
+        
         message = message.replace('{skills}', skills)
+        message = message.replace('{project_title}', project_title)
+        message = message.replace('{days}', str(delivery_days))
         
         return message
 

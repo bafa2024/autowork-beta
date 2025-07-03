@@ -44,19 +44,35 @@ class Settings(BaseSettings):
     
     # Bid templates
     bid_templates: List[str] = [
-        """Hi! I just reviewed your project and I'm ready to start immediately. 
-        With my expertise in {skills}, I can deliver exactly what you need. 
-        I've successfully completed similar projects and maintain 100% client satisfaction. 
-        Let's discuss your requirements right away!""",
+        """Hello, see the message below:
+
+Dear Client,
+
+I have carefully reviewed your project requirements for {project_title}. With my expertise in {skills}, I can deliver high-quality results within {days} days.
+
+I have successfully completed similar projects with excellent client feedback. I would be happy to discuss your specific needs in detail.
+
+Best regards.""",
         
-        """Hello! Your project caught my attention and I'm very interested. 
-        I specialize in {skills} and can begin working on this today. 
-        I'll ensure high-quality delivery within your timeline and budget. 
-        Available to chat now!""",
+        """Hello, see the message below:
+
+Dear Hiring Manager,
+
+Your project for {project_title} aligns perfectly with my professional expertise. I bring extensive experience in {skills} and can ensure timely delivery within {days} days.
+
+I'm committed to exceeding your expectations and would welcome the opportunity to discuss your requirements further.
+
+Sincerely.""",
         
-        """Hi there! I'm experienced in {skills} and perfectly suited for your project. 
-        I can start immediately and provide regular updates. 
-        Let's connect to discuss how I can help you achieve your goals!"""
+        """Hello, see the message below:
+
+Good day,
+
+I've thoroughly analyzed your requirements for {project_title}. My proven track record in {skills} positions me as an ideal candidate for this project.
+
+I guarantee professional execution within {days} days and look forward to contributing to your success.
+
+Best regards."""
     ]
 
 settings = Settings()
