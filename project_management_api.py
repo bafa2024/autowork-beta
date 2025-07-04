@@ -341,6 +341,105 @@ def not_found(error):
 def internal_error(error):
     return jsonify({'error': 'Internal server error'}), 500
 
+@app.route('/api/sdlc/analyze', methods=['POST'])
+def analyze_project_sdlc():
+    """Analyze project description and generate SDLC documents"""
+    try:
+        data = request.get_json()
+        project_description = data.get('project_description', '')
+        project_title = data.get('project_title', 'Project')
+        budget = data.get('budget', {})
+        ai_provider = data.get('ai_provider', 'openai')
+        
+        if not project_description.strip():
+            return jsonify({
+                'success': False,
+                'error': 'Project description is required'
+            }), 400
+        
+        # Import and initialize SDLC service
+        from auto_sdlc_service import AutoSDLCService
+        
+        sdlc_service = AutoSDLCService(ai_provider=ai_provider)
+        
+        # Analyze project
+        analysis = sdlc_service.analyze_project(project_description, budget)
+        
+        # Generate SRS
+        srs = sdlc_service.generate_srs(project_description, analysis, project_title)
+        
+        # Generate Design
+        design = sdlc_service.generate_design(srs, analysis)
+        
+        # Generate Implementation Plan
+        plan = sdlc_service.generate_implementation_plan(design, analysis, analysis.estimated_hours)
+        
+        # Convert to JSON-serializable format
+        from dataclasses import asdict
+        
+        result = {
+            'success': True,
+            'analysis': asdict(analysis),
+            'srs': asdict(srs),
+            'design': asdict(design),
+            'implementation_plan': asdict(plan),
+            'summary': {
+                'project_type': analysis.project_type,
+                'complexity': analysis.complexity,
+                'estimated_hours': analysis.estimated_hours,
+                'technologies': analysis.technologies,
+                'key_features': analysis.key_features,
+                'risks': analysis.risks
+            }
+        }
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"Error analyzing project SDLC: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/sdlc/export', methods=['POST'])
+def export_sdlc_documents():
+    """Export SDLC documents in various formats"""
+    try:
+        data = request.get_json()
+        srs_data = data.get('srs', {})
+        design_data = data.get('design', {})
+        plan_data = data.get('implementation_plan', {})
+        export_format = data.get('format', 'json')
+        
+        # Import SDLC service
+        from auto_sdlc_service import AutoSDLCService, SRSDocument, DesignDocument, ImplementationPlan
+        
+        sdlc_service = AutoSDLCService()
+        
+        # Reconstruct objects from data
+        srs = SRSDocument(**srs_data)
+        design = DesignDocument(**design_data)
+        plan = ImplementationPlan(**plan_data)
+        
+        # Export documents
+        files = sdlc_service.export_documents(srs, design, plan, format=export_format)
+        
+        return jsonify({
+            'success': True,
+            'files': files,
+            'message': f'Documents exported in {export_format} format'
+        })
+        
+    except Exception as e:
+        logger.error(f"Error exporting SDLC documents: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5001))
     host = os.environ.get('HOST', '127.0.0.1')

@@ -473,11 +473,12 @@
                 <span>AutoWork PM</span>
             </div>
             <nav class="nav">
-                <a href="#dashboard" class="active">Dashboard</a>
-                <a href="#projects">Projects</a>
-                <a href="#tasks">Tasks</a>
-                <a href="#reports">Reports</a>
-                <a href="#settings">Settings</a>
+                <a href="#dashboard" class="active" onclick="showPage('dashboard')">Dashboard</a>
+                <a href="#projects" onclick="showPage('projects')">Projects</a>
+                <a href="#sdlc" onclick="showPage('sdlc')">SDLC Analysis</a>
+                <a href="#tasks" onclick="showPage('tasks')">Tasks</a>
+                <a href="#reports" onclick="showPage('reports')">Reports</a>
+                <a href="#settings" onclick="showPage('settings')">Settings</a>
             </nav>
         </div>
     </header>
@@ -570,6 +571,125 @@
                     <div class="chart-container">
                         <span>Project completion chart will appear here</span>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SDLC Analysis Page -->
+    <div class="container" id="sdlc-page" style="display: none;">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">SDLC Analysis</h3>
+                <p style="color: var(--gray); margin: 0;">Automatically analyze project descriptions and generate SRS, design docs, and implementation plans</p>
+            </div>
+            <div class="card-body">
+                <form id="sdlc-form">
+                    <div class="form-group">
+                        <label class="form-label">Project Title</label>
+                        <input type="text" class="form-control" id="project-title" placeholder="Enter project title" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Project Description</label>
+                        <textarea class="form-control" id="project-description" rows="8" placeholder="Describe your project in detail. Include features, requirements, technologies, and any specific constraints..." required></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Budget (Optional)</label>
+                        <div style="display: flex; gap: 1rem;">
+                            <input type="number" class="form-control" id="budget-min" placeholder="Minimum budget">
+                            <input type="number" class="form-control" id="budget-max" placeholder="Maximum budget">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">AI Provider</label>
+                        <select class="form-control" id="ai-provider">
+                            <option value="openai">OpenAI (GPT)</option>
+                            <option value="anthropic">Anthropic (Claude)</option>
+                            <option value="gemini">Google (Gemini)</option>
+                        </select>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary" id="analyze-btn">
+                        <span id="analyze-icon">🔍</span>
+                        <span>Analyze Project</span>
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Results Section -->
+        <div id="sdlc-results" style="display: none;">
+            <!-- Project Analysis Summary -->
+            <div class="card" style="margin-top: 2rem;">
+                <div class="card-header">
+                    <h3 class="card-title">Project Analysis Summary</h3>
+                    <button class="btn btn-secondary btn-sm" onclick="exportSDLCDocuments()">
+                        <span>📄</span>
+                        <span>Export Documents</span>
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div class="dashboard-grid">
+                        <div class="status-card">
+                            <div class="status-value" id="project-type">-</div>
+                            <div class="status-label">Project Type</div>
+                        </div>
+                        <div class="status-card">
+                            <div class="status-value" id="complexity">-</div>
+                            <div class="status-label">Complexity</div>
+                        </div>
+                        <div class="status-card">
+                            <div class="status-value" id="estimated-hours">-</div>
+                            <div class="status-label">Estimated Hours</div>
+                        </div>
+                        <div class="status-card">
+                            <div class="status-value" id="technologies-count">-</div>
+                            <div class="status-label">Technologies</div>
+                        </div>
+                    </div>
+                    
+                    <div style="margin-top: 1.5rem;">
+                        <h4>Key Features</h4>
+                        <div id="key-features" style="margin-top: 0.5rem;"></div>
+                    </div>
+                    
+                    <div style="margin-top: 1.5rem;">
+                        <h4>Identified Risks</h4>
+                        <div id="project-risks" style="margin-top: 0.5rem;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SRS Document -->
+            <div class="card" style="margin-top: 1.5rem;">
+                <div class="card-header">
+                    <h3 class="card-title">Software Requirements Specification (SRS)</h3>
+                </div>
+                <div class="card-body">
+                    <div id="srs-content"></div>
+                </div>
+            </div>
+
+            <!-- Design Document -->
+            <div class="card" style="margin-top: 1.5rem;">
+                <div class="card-header">
+                    <h3 class="card-title">System Design Document</h3>
+                </div>
+                <div class="card-body">
+                    <div id="design-content"></div>
+                </div>
+            </div>
+
+            <!-- Implementation Plan -->
+            <div class="card" style="margin-top: 1.5rem;">
+                <div class="card-header">
+                    <h3 class="card-title">Implementation Plan</h3>
+                </div>
+                <div class="card-body">
+                    <div id="plan-content"></div>
                 </div>
             </div>
         </div>
@@ -1441,6 +1561,283 @@
                 syncBtn.disabled = false;
                 syncIcon.style.animation = '';
                 syncBtn.innerHTML = originalContent;
+            }
+        }
+
+        // SDLC Analysis Functions
+        let sdlcResults = null;
+
+        // Page Navigation
+        function showPage(pageName) {
+            // Hide all pages
+            document.querySelectorAll('.container').forEach(container => {
+                container.style.display = 'none';
+            });
+            
+            // Show selected page
+            if (pageName === 'dashboard') {
+                document.querySelector('.container').style.display = 'block';
+            } else if (pageName === 'sdlc') {
+                document.getElementById('sdlc-page').style.display = 'block';
+            }
+            
+            // Update navigation
+            document.querySelectorAll('.nav a').forEach(link => {
+                link.classList.remove('active');
+            });
+            event.target.classList.add('active');
+        }
+
+        // SDLC Form Submission
+        document.getElementById('sdlc-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const analyzeBtn = document.getElementById('analyze-btn');
+            const analyzeIcon = document.getElementById('analyze-icon');
+            const originalContent = analyzeBtn.innerHTML;
+            
+            // Show loading state
+            analyzeBtn.disabled = true;
+            analyzeIcon.style.animation = 'spin 1s linear infinite';
+            analyzeBtn.innerHTML = '<span class="loading"></span><span>Analyzing...</span>';
+            
+            try {
+                const projectTitle = document.getElementById('project-title').value;
+                const projectDescription = document.getElementById('project-description').value;
+                const budgetMin = document.getElementById('budget-min').value;
+                const budgetMax = document.getElementById('budget-max').value;
+                const aiProvider = document.getElementById('ai-provider').value;
+                
+                const budget = {};
+                if (budgetMin) budget.minimum = parseFloat(budgetMin);
+                if (budgetMax) budget.maximum = parseFloat(budgetMax);
+                
+                const response = await fetch(`${API_BASE}/sdlc/analyze`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        project_title: projectTitle,
+                        project_description: projectDescription,
+                        budget: budget,
+                        ai_provider: aiProvider
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    sdlcResults = data;
+                    displaySDLCResults(data);
+                    showNotification('✅ Project analysis completed successfully!', 'success');
+                } else {
+                    showNotification(`❌ Analysis failed: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                handleApiError(error, 'SDLC Analysis');
+                showNotification('❌ Failed to analyze project', 'error');
+            } finally {
+                // Restore button state
+                analyzeBtn.disabled = false;
+                analyzeIcon.style.animation = '';
+                analyzeBtn.innerHTML = originalContent;
+            }
+        });
+
+        // Display SDLC Results
+        function displaySDLCResults(data) {
+            const resultsDiv = document.getElementById('sdlc-results');
+            resultsDiv.style.display = 'block';
+            
+            // Update summary cards
+            document.getElementById('project-type').textContent = data.summary.project_type.replace('_', ' ').toUpperCase();
+            document.getElementById('complexity').textContent = data.summary.complexity.toUpperCase();
+            document.getElementById('estimated-hours').textContent = data.summary.estimated_hours;
+            document.getElementById('technologies-count').textContent = data.summary.technologies.length;
+            
+            // Display key features
+            const featuresDiv = document.getElementById('key-features');
+            featuresDiv.innerHTML = data.summary.key_features.map(feature => 
+                `<div style="background: #f3f4f6; padding: 0.5rem; border-radius: 4px; margin-bottom: 0.5rem;">• ${feature}</div>`
+            ).join('');
+            
+            // Display risks
+            const risksDiv = document.getElementById('project-risks');
+            risksDiv.innerHTML = data.summary.risks.map(risk => 
+                `<div style="background: #fef2f2; color: #991b1b; padding: 0.5rem; border-radius: 4px; margin-bottom: 0.5rem;">⚠️ ${risk}</div>`
+            ).join('');
+            
+            // Display SRS
+            displaySRS(data.srs);
+            
+            // Display Design
+            displayDesign(data.design);
+            
+            // Display Implementation Plan
+            displayImplementationPlan(data.implementation_plan);
+            
+            // Scroll to results
+            resultsDiv.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // Display SRS Document
+        function displaySRS(srs) {
+            const srsDiv = document.getElementById('srs-content');
+            srsDiv.innerHTML = `
+                <h4>Overview</h4>
+                <p>${srs.overview || 'No overview provided.'}</p>
+                
+                <h4>Scope</h4>
+                <p>${srs.scope || 'No scope defined.'}</p>
+                
+                <h4>Functional Requirements</h4>
+                <ul>
+                    ${srs.functional_requirements.map(req => 
+                        `<li><strong>${req.id}:</strong> ${req.description}</li>`
+                    ).join('')}
+                </ul>
+                
+                <h4>Non-Functional Requirements</h4>
+                <ul>
+                    ${srs.non_functional_requirements.map(req => 
+                        `<li><strong>${req.id} (${req.category}):</strong> ${req.description}</li>`
+                    ).join('')}
+                </ul>
+                
+                <h4>User Stories</h4>
+                <ul>
+                    ${srs.user_stories.map(story => 
+                        `<li><strong>${story.id}:</strong> ${story.story}</li>`
+                    ).join('')}
+                </ul>
+                
+                <h4>Acceptance Criteria</h4>
+                <ul>
+                    ${srs.acceptance_criteria.map(criteria => 
+                        `<li>${criteria}</li>`
+                    ).join('')}
+                </ul>
+            `;
+        }
+
+        // Display Design Document
+        function displayDesign(design) {
+            const designDiv = document.getElementById('design-content');
+            designDiv.innerHTML = `
+                <h4>Architecture Type</h4>
+                <p>${design.architecture_type}</p>
+                
+                <h4>Components</h4>
+                <ul>
+                    ${design.components.map(comp => 
+                        `<li><strong>${comp.name}:</strong> ${comp.description}</li>`
+                    ).join('')}
+                </ul>
+                
+                <h4>Data Models</h4>
+                <ul>
+                    ${design.data_models.map(model => 
+                        `<li><strong>${model.name}:</strong> Fields: ${model.fields}, Relationships: ${model.relationships}</li>`
+                    ).join('')}
+                </ul>
+                
+                <h4>API Endpoints</h4>
+                <ul>
+                    ${design.api_endpoints.map(endpoint => 
+                        `<li><strong>${endpoint.method} ${endpoint.path}:</strong> ${endpoint.description}</li>`
+                    ).join('')}
+                </ul>
+                
+                <h4>Technology Stack</h4>
+                ${Object.entries(design.technology_stack).map(([category, techs]) => 
+                    `<div><strong>${category}:</strong> ${techs.join(', ')}</div>`
+                ).join('')}
+                
+                <h4>Security Considerations</h4>
+                <ul>
+                    ${design.security_considerations.map(security => 
+                        `<li>${security}</li>`
+                    ).join('')}
+                </ul>
+            `;
+        }
+
+        // Display Implementation Plan
+        function displayImplementationPlan(plan) {
+            const planDiv = document.getElementById('plan-content');
+            planDiv.innerHTML = `
+                <h4>Timeline</h4>
+                <p>Total Hours: ${plan.timeline.total_hours} | Total Days: ${plan.timeline.total_days} | Total Weeks: ${plan.timeline.total_weeks}</p>
+                
+                <h4>Phases</h4>
+                <ul>
+                    ${plan.phases.map(phase => 
+                        `<li><strong>${phase.name}:</strong> ${phase.hours} hours (${phase.days} days) - ${phase.description}</li>`
+                    ).join('')}
+                </ul>
+                
+                <h4>Tasks</h4>
+                <ul>
+                    ${plan.tasks.map(task => 
+                        `<li><strong>${task.title}:</strong> ${task.estimated_hours} hours - ${task.description}</li>`
+                    ).join('')}
+                </ul>
+                
+                <h4>Milestones</h4>
+                <ul>
+                    ${plan.milestones.map(milestone => 
+                        `<li><strong>${milestone.name}:</strong> ${milestone.deliverable}</li>`
+                    ).join('')}
+                </ul>
+                
+                <h4>Resource Allocation</h4>
+                <p>Developers needed: ${plan.resource_allocation.developers_needed}</p>
+                <p>Roles: ${plan.resource_allocation.roles.join(', ')}</p>
+            `;
+        }
+
+        // Export SDLC Documents
+        async function exportSDLCDocuments() {
+            if (!sdlcResults) {
+                showNotification('❌ No analysis results to export', 'error');
+                return;
+            }
+            
+            const format = prompt('Enter export format (json/markdown):', 'markdown');
+            if (!format || !['json', 'markdown'].includes(format)) {
+                showNotification('❌ Please enter a valid format (json or markdown)', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/sdlc/export`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        srs: sdlcResults.srs,
+                        design: sdlcResults.design,
+                        implementation_plan: sdlcResults.implementation_plan,
+                        format: format
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification(`✅ Documents exported successfully! Files: ${Object.values(data.files).join(', ')}`, 'success');
+                } else {
+                    showNotification(`❌ Export failed: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                handleApiError(error, 'Export SDLC Documents');
+                showNotification('❌ Failed to export documents', 'error');
             }
         }
     </script>

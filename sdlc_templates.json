@@ -1,0 +1,233 @@
+{
+    "srs": {
+      "sections": [
+        "overview",
+        "scope", 
+        "functional_requirements",
+        "non_functional_requirements",
+        "user_stories",
+        "acceptance_criteria",
+        "constraints",
+        "assumptions"
+      ],
+      "format": "structured",
+      "templates": {
+        "overview": "This document outlines the software requirements for {project_title}, a {complexity} complexity {project_type} project that aims to {main_objective}.",
+        "scope": "The project encompasses the development of a complete {project_type} solution with an estimated {estimated_hours} hours of development effort. The system will {key_capabilities}."
+      }
+    },
+    
+    "design": {
+      "sections": [
+        "architecture",
+        "components",
+        "data_models",
+        "api_design",
+        "technology_stack",
+        "security",
+        "scalability"
+      ],
+      "format": "technical",
+      "architecture_patterns": {
+        "web_app": {
+          "name": "Three-tier Architecture",
+          "description": "Presentation layer (Frontend), Business logic layer (Backend), and Data layer (Database)",
+          "components": ["Web Server", "Application Server", "Database Server", "Cache Layer", "CDN"]
+        },
+        "mobile_app": {
+          "name": "Client-Server Architecture", 
+          "description": "Mobile client app communicating with backend services via REST API",
+          "components": ["Mobile Client", "API Gateway", "Backend Services", "Push Notification Service", "Database"]
+        },
+        "api": {
+          "name": "Microservices Architecture",
+          "description": "Distributed services with API Gateway for routing and load balancing",
+          "components": ["API Gateway", "Service Registry", "Individual Microservices", "Message Queue", "Database per Service"]
+        },
+        "blockchain": {
+          "name": "Decentralized Architecture",
+          "description": "Smart contracts on blockchain with web3 frontend integration",
+          "components": ["Smart Contracts", "Blockchain Network", "Web3 Frontend", "IPFS Storage", "Oracle Services"]
+        }
+      }
+    },
+    
+    "implementation": {
+      "sections": [
+        "phases",
+        "tasks",
+        "milestones", 
+        "timeline",
+        "resources",
+        "dependencies"
+      ],
+      "format": "gantt",
+      "phase_templates": [
+        {
+          "name": "Project Initiation",
+          "typical_percentage": 5,
+          "tasks": [
+            "Project kickoff meeting",
+            "Requirements finalization",
+            "Development environment setup",
+            "Team onboarding"
+          ]
+        },
+        {
+          "name": "Design & Architecture",
+          "typical_percentage": 15,
+          "tasks": [
+            "System architecture design",
+            "Database schema design",
+            "API specification",
+            "UI/UX wireframes",
+            "Technical documentation"
+          ]
+        },
+        {
+          "name": "Core Development", 
+          "typical_percentage": 50,
+          "tasks": [
+            "Backend API development",
+            "Frontend development",
+            "Database implementation",
+            "Third-party integrations",
+            "Core feature implementation"
+          ]
+        },
+        {
+          "name": "Testing & QA",
+          "typical_percentage": 20,
+          "tasks": [
+            "Unit testing",
+            "Integration testing",
+            "Performance testing",
+            "Security testing",
+            "User acceptance testing"
+          ]
+        },
+        {
+          "name": "Deployment & Launch",
+          "typical_percentage": 10,
+          "tasks": [
+            "Production environment setup",
+            "Deployment automation",
+            "Data migration",
+            "Go-live preparation",
+            "Post-launch support"
+          ]
+        }
+      ]
+    },
+    
+    "technology_recommendations": {
+      "web_app": {
+        "frontend": ["React", "Vue.js", "Angular", "Next.js"],
+        "backend": ["Node.js", "Python/Django", "Ruby on Rails", "ASP.NET"],
+        "database": ["PostgreSQL", "MySQL", "MongoDB"],
+        "cache": ["Redis", "Memcached"],
+        "deployment": ["AWS", "Google Cloud", "Azure", "Vercel"]
+      },
+      "mobile_app": {
+        "cross_platform": ["React Native", "Flutter", "Ionic"],
+        "ios": ["Swift", "SwiftUI"],
+        "android": ["Kotlin", "Java"],
+        "backend": ["Node.js", "Python/FastAPI", "Go"],
+        "database": ["PostgreSQL", "Firebase", "MongoDB"]
+      },
+      "api": {
+        "languages": ["Node.js", "Python", "Go", "Java"],
+        "frameworks": ["Express", "FastAPI", "Gin", "Spring Boot"],
+        "protocols": ["REST", "GraphQL", "gRPC"],
+        "documentation": ["Swagger/OpenAPI", "Postman", "API Blueprint"]
+      },
+      "blockchain": {
+        "platforms": ["Ethereum", "Polygon", "Binance Smart Chain", "Solana"],
+        "languages": ["Solidity", "Rust", "Move"],
+        "frameworks": ["Hardhat", "Truffle", "Anchor"],
+        "web3": ["ethers.js", "web3.js", "wagmi"]
+      }
+    },
+    
+    "complexity_indicators": {
+      "low": {
+        "keywords": ["simple", "basic", "straightforward", "minimal", "prototype", "mvp", "proof of concept"],
+        "typical_features": 5,
+        "typical_hours": 40,
+        "team_size": 1
+      },
+      "medium": {
+        "keywords": ["standard", "typical", "moderate", "regular", "common"],
+        "typical_features": 10,
+        "typical_hours": 120,
+        "team_size": 2
+      },
+      "high": {
+        "keywords": ["complex", "advanced", "sophisticated", "enterprise", "scalable", "distributed", "high-performance"],
+        "typical_features": 20,
+        "typical_hours": 300,
+        "team_size": 3
+      }
+    },
+    
+    "risk_templates": {
+      "technical": [
+        "Third-party API dependencies",
+        "Technology stack learning curve",
+        "Scalability requirements",
+        "Integration complexity",
+        "Performance optimization needs"
+      ],
+      "project": [
+        "Unclear requirements",
+        "Scope creep potential",
+        "Tight deadline constraints",
+        "Budget limitations",
+        "Resource availability"
+      ],
+      "business": [
+        "Market competition",
+        "Regulatory compliance",
+        "User adoption challenges",
+        "ROI expectations",
+        "Stakeholder alignment"
+      ]
+    },
+    
+    "quality_metrics": {
+      "code_quality": [
+        "Code coverage > 80%",
+        "No critical security vulnerabilities",
+        "Performance benchmarks met",
+        "Coding standards compliance"
+      ],
+      "project_success": [
+        "On-time delivery",
+        "Within budget",
+        "All requirements met",
+        "Client satisfaction",
+        "Post-launch stability"
+      ]
+    },
+    
+    "document_styles": {
+      "professional": {
+        "tone": "formal",
+        "sections": "numbered",
+        "diagrams": true,
+        "executive_summary": true
+      },
+      "technical": {
+        "tone": "technical",
+        "code_examples": true,
+        "architecture_diagrams": true,
+        "api_documentation": true
+      },
+      "agile": {
+        "tone": "conversational", 
+        "user_stories": true,
+        "sprint_planning": true,
+        "burndown_charts": true
+      }
+    }
+  }

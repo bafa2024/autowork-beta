@@ -150,5 +150,11 @@
     "min_hours_remaining": 24,
     "allowed_types": ["Web Development", "Software Development", "Mobile App"],
     "skills": ["Python", "JavaScript", "React", "Node.js"]
+  },
+  "sdlc": {
+    "enabled": true,
+    "auto_analyze": true,
+    "generate_on_bid": true,
+    "min_budget_for_analysis": 500
   }
 }
