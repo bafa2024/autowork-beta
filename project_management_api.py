@@ -7,9 +7,10 @@ Provides REST API endpoints for the project management dashboard
 import os
 import json
 import logging
+import io
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
-from flask import Flask, request, jsonify, render_template_string
+from flask import Flask, request, jsonify, render_template_string, send_file
 from flask_cors import CORS
 from dotenv import load_dotenv
 
