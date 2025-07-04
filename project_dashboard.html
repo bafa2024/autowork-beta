@@ -1806,13 +1806,133 @@
                 return;
             }
             
-            const format = prompt('Enter export format (json/markdown):', 'markdown');
-            if (!format || !['json', 'markdown'].includes(format)) {
-                showNotification('❌ Please enter a valid format (json or markdown)', 'error');
+            // Create format selection dialog
+            const formatDialog = document.createElement('div');
+            formatDialog.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.5);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                z-index: 1000;
+            `;
+            
+            formatDialog.innerHTML = `
+                <div style="
+                    background: white;
+                    padding: 2rem;
+                    border-radius: 8px;
+                    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+                    max-width: 400px;
+                    width: 90%;
+                ">
+                    <h3 style="margin-bottom: 1rem; color: #1f2937;">Export SDLC Documents</h3>
+                    <p style="margin-bottom: 1.5rem; color: #6b7280;">Choose your preferred format:</p>
+                    
+                    <div style="display: grid; gap: 0.75rem;">
+                        <button onclick="exportInFormat('word')" style="
+                            padding: 0.75rem 1rem;
+                            background: #3b82f6;
+                            color: white;
+                            border: none;
+                            border-radius: 6px;
+                            cursor: pointer;
+                            font-weight: 500;
+                            display: flex;
+                            align-items: center;
+                            gap: 0.5rem;
+                        ">
+                            📄 Microsoft Word (.docx)
+                        </button>
+                        
+                        <button onclick="exportInFormat('pdf')" style="
+                            padding: 0.75rem 1rem;
+                            background: #ef4444;
+                            color: white;
+                            border: none;
+                            border-radius: 6px;
+                            cursor: pointer;
+                            font-weight: 500;
+                            display: flex;
+                            align-items: center;
+                            gap: 0.5rem;
+                        ">
+                            📊 PDF Document (.pdf)
+                        </button>
+                        
+                        <button onclick="exportInFormat('markdown')" style="
+                            padding: 0.75rem 1rem;
+                            background: #10b981;
+                            color: white;
+                            border: none;
+                            border-radius: 6px;
+                            cursor: pointer;
+                            font-weight: 500;
+                            display: flex;
+                            align-items: center;
+                            gap: 0.5rem;
+                        ">
+                            📝 Markdown (.md)
+                        </button>
+                        
+                        <button onclick="exportInFormat('json')" style="
+                            padding: 0.75rem 1rem;
+                            background: #f59e0b;
+                            color: white;
+                            border: none;
+                            border-radius: 6px;
+                            cursor: pointer;
+                            font-weight: 500;
+                            display: flex;
+                            align-items: center;
+                            gap: 0.5rem;
+                        ">
+                            🔧 JSON (.json)
+                        </button>
+                        
+                        <button onclick="closeFormatDialog()" style="
+                            padding: 0.75rem 1rem;
+                            background: #6b7280;
+                            color: white;
+                            border: none;
+                            border-radius: 6px;
+                            cursor: pointer;
+                            font-weight: 500;
+                            margin-top: 0.5rem;
+                        ">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(formatDialog);
+        }
+        
+        // Close format dialog
+        function closeFormatDialog() {
+            const dialog = document.querySelector('div[style*="position: fixed"]');
+            if (dialog) {
+                dialog.remove();
+            }
+        }
+        
+        // Export in specific format
+        async function exportInFormat(format) {
+            closeFormatDialog();
+            
+            if (!sdlcResults) {
+                showNotification('❌ No analysis results to export', 'error');
                 return;
             }
             
             try {
+                const projectTitle = document.getElementById('project-description').value || 'Project';
+                
                 const response = await fetch(`${API_BASE}/sdlc/export`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1820,7 +1940,8 @@
                         srs: sdlcResults.srs,
                         design: sdlcResults.design,
                         implementation_plan: sdlcResults.implementation_plan,
-                        format: format
+                        format: format,
+                        project_title: projectTitle
                     })
                 });
                 
@@ -1828,16 +1949,32 @@
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 
-                const data = await response.json();
-                
-                if (data.success) {
-                    showNotification(`✅ Documents exported successfully! Files: ${Object.values(data.files).join(', ')}`, 'success');
+                if (format === 'word' || format === 'pdf') {
+                    // Handle file download
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `${projectTitle.replace(/[^a-zA-Z0-9]/g, '_')}_SDLC_Documents.${format === 'word' ? 'docx' : 'pdf'}`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                    
+                    showNotification(`✅ ${format.toUpperCase()} document downloaded successfully!`, 'success');
                 } else {
-                    showNotification(`❌ Export failed: ${data.error}`, 'error');
+                    // Handle JSON response for other formats
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        showNotification(`✅ Documents exported successfully! Files: ${Object.values(data.files).join(', ')}`, 'success');
+                    } else {
+                        showNotification(`❌ Export failed: ${data.error}`, 'error');
+                    }
                 }
             } catch (error) {
                 handleApiError(error, 'Export SDLC Documents');
-                showNotification('❌ Failed to export documents', 'error');
+                showNotification(`❌ Failed to export ${format.toUpperCase()} document`, 'error');
             }
         }
     </script>

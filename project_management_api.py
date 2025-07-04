@@ -414,6 +414,7 @@ def export_sdlc_documents():
         design_data = data.get('design', {})
         plan_data = data.get('implementation_plan', {})
         export_format = data.get('format', 'json')
+        project_title = data.get('project_title', 'Project')
         
         # Import SDLC service
         from auto_sdlc_service import AutoSDLCService, SRSDocument, DesignDocument, ImplementationPlan
@@ -425,21 +426,316 @@ def export_sdlc_documents():
         design = DesignDocument(**design_data)
         plan = ImplementationPlan(**plan_data)
         
-        # Export documents
-        files = sdlc_service.export_documents(srs, design, plan, format=export_format)
-        
-        return jsonify({
-            'success': True,
-            'files': files,
-            'message': f'Documents exported in {export_format} format'
-        })
+        if export_format in ['word', 'pdf']:
+            # Generate document in memory
+            if export_format == 'word':
+                doc_buffer = generate_word_document(srs, design, plan, project_title)
+                filename = f"{project_title.replace(' ', '_')}_SDLC_Documents.docx"
+                mimetype = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            else:  # pdf
+                doc_buffer = generate_pdf_document(srs, design, plan, project_title)
+                filename = f"{project_title.replace(' ', '_')}_SDLC_Documents.pdf"
+                mimetype = 'application/pdf'
+            
+            # Return file for download
+            doc_buffer.seek(0)
+            return send_file(
+                doc_buffer,
+                mimetype=mimetype,
+                as_attachment=True,
+                download_name=filename
+            )
+        else:
+            # Use existing export for json/markdown
+            files = sdlc_service.export_documents(srs, design, plan, format=export_format)
+            return jsonify({
+                'success': True,
+                'files': files,
+                'message': f'Documents exported in {export_format} format'
+            })
         
     except Exception as e:
         logger.error(f"Error exporting SDLC documents: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
         return jsonify({
             'success': False,
             'error': str(e)
         }), 500
+
+def generate_word_document(srs, design, plan, project_title):
+    """Generate Word document with all SDLC documents"""
+    from docx import Document
+    from docx.shared import Inches, Pt
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.enum.style import WD_STYLE_TYPE
+    
+    doc = Document()
+    
+    # Set up styles
+    styles = doc.styles
+    title_style = styles.add_style('CustomTitle', WD_STYLE_TYPE.PARAGRAPH)
+    title_style.font.size = Pt(18)
+    title_style.font.bold = True
+    title_style.paragraph_format.space_after = Pt(12)
+    
+    heading_style = styles.add_style('CustomHeading', WD_STYLE_TYPE.PARAGRAPH)
+    heading_style.font.size = Pt(14)
+    heading_style.font.bold = True
+    heading_style.paragraph_format.space_after = Pt(6)
+    
+    # Title page
+    doc.add_heading(f'{project_title} - SDLC Documents', 0)
+    doc.add_paragraph(f'Generated on {datetime.now().strftime("%B %d, %Y")}')
+    doc.add_page_break()
+    
+    # Table of Contents placeholder
+    doc.add_heading('Table of Contents', level=1)
+    doc.add_paragraph('1. Software Requirements Specification (SRS)')
+    doc.add_paragraph('2. System Design Document')
+    doc.add_paragraph('3. Implementation Plan')
+    doc.add_page_break()
+    
+    # SRS Section
+    doc.add_heading('1. Software Requirements Specification (SRS)', level=1)
+    doc.add_heading(f'{srs.project_title}', level=2)
+    
+    doc.add_heading('Overview', level=3)
+    doc.add_paragraph(srs.overview or 'No overview provided.')
+    
+    doc.add_heading('Scope', level=3)
+    doc.add_paragraph(srs.scope or 'No scope defined.')
+    
+    doc.add_heading('Functional Requirements', level=3)
+    for req in srs.functional_requirements:
+        p = doc.add_paragraph()
+        p.add_run(f'{req["id"]}: ').bold = True
+        p.add_run(req['description'])
+    
+    doc.add_heading('Non-Functional Requirements', level=3)
+    for req in srs.non_functional_requirements:
+        p = doc.add_paragraph()
+        p.add_run(f'{req["id"]} ({req["category"]}): ').bold = True
+        p.add_run(req['description'])
+    
+    doc.add_heading('User Stories', level=3)
+    for story in srs.user_stories:
+        p = doc.add_paragraph()
+        p.add_run(f'{story["id"]}: ').bold = True
+        p.add_run(story['story'])
+    
+    doc.add_heading('Acceptance Criteria', level=3)
+    for criteria in srs.acceptance_criteria:
+        doc.add_paragraph(criteria, style='List Bullet')
+    
+    doc.add_page_break()
+    
+    # Design Section
+    doc.add_heading('2. System Design Document', level=1)
+    
+    doc.add_heading('Architecture Type', level=3)
+    doc.add_paragraph(design.architecture_type)
+    
+    doc.add_heading('Components', level=3)
+    for comp in design.components:
+        p = doc.add_paragraph()
+        p.add_run(f'{comp["name"]}: ').bold = True
+        p.add_run(comp['description'])
+    
+    doc.add_heading('Data Models', level=3)
+    for model in design.data_models:
+        p = doc.add_paragraph()
+        p.add_run(f'{model["name"]}: ').bold = True
+        p.add_run(f'Fields: {model["fields"]}, Relationships: {model["relationships"]}')
+    
+    doc.add_heading('API Endpoints', level=3)
+    for endpoint in design.api_endpoints:
+        p = doc.add_paragraph()
+        p.add_run(f'{endpoint["method"]} {endpoint["path"]}: ').bold = True
+        p.add_run(endpoint['description'])
+    
+    doc.add_heading('Technology Stack', level=3)
+    for category, techs in design.technology_stack.items():
+        p = doc.add_paragraph()
+        p.add_run(f'{category}: ').bold = True
+        p.add_run(', '.join(techs))
+    
+    doc.add_heading('Security Considerations', level=3)
+    for security in design.security_considerations:
+        doc.add_paragraph(security, style='List Bullet')
+    
+    doc.add_page_break()
+    
+    # Implementation Plan Section
+    doc.add_heading('3. Implementation Plan', level=1)
+    
+    doc.add_heading('Timeline', level=3)
+    timeline_text = f"Total Hours: {plan.timeline['total_hours']} | Total Days: {plan.timeline['total_days']} | Total Weeks: {plan.timeline['total_weeks']}"
+    doc.add_paragraph(timeline_text)
+    
+    doc.add_heading('Phases', level=3)
+    for phase in plan.phases:
+        p = doc.add_paragraph()
+        p.add_run(f'{phase["name"]}: ').bold = True
+        p.add_run(f'{phase["hours"]} hours ({phase["days"]} days) - {phase["description"]}')
+    
+    doc.add_heading('Tasks', level=3)
+    for task in plan.tasks:
+        p = doc.add_paragraph()
+        p.add_run(f'{task["title"]}: ').bold = True
+        p.add_run(f'{task["estimated_hours"]} hours - {task["description"]}')
+    
+    doc.add_heading('Milestones', level=3)
+    for milestone in plan.milestones:
+        p = doc.add_paragraph()
+        p.add_run(f'{milestone["name"]}: ').bold = True
+        p.add_run(milestone['deliverable'])
+    
+    doc.add_heading('Resource Allocation', level=3)
+    doc.add_paragraph(f"Developers needed: {plan.resource_allocation['developers_needed']}")
+    doc.add_paragraph(f"Roles: {', '.join(plan.resource_allocation['roles'])}")
+    
+    # Save to buffer
+    buffer = io.BytesIO()
+    doc.save(buffer)
+    return buffer
+
+def generate_pdf_document(srs, design, plan, project_title):
+    """Generate PDF document with all SDLC documents"""
+    from reportlab.lib.pagesizes import letter, A4
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Table, TableStyle
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import inch
+    from reportlab.lib import colors
+    
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=72, leftMargin=72, topMargin=72, bottomMargin=18)
+    
+    # Styles
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=18,
+        spaceAfter=12,
+        alignment=1  # Center
+    )
+    heading_style = ParagraphStyle(
+        'CustomHeading',
+        parent=styles['Heading2'],
+        fontSize=14,
+        spaceAfter=6
+    )
+    
+    story = []
+    
+    # Title page
+    story.append(Paragraph(f'{project_title} - SDLC Documents', title_style))
+    story.append(Spacer(1, 12))
+    story.append(Paragraph(f'Generated on {datetime.now().strftime("%B %d, %Y")}', styles['Normal']))
+    story.append(PageBreak())
+    
+    # Table of Contents
+    story.append(Paragraph('Table of Contents', heading_style))
+    story.append(Paragraph('1. Software Requirements Specification (SRS)', styles['Normal']))
+    story.append(Paragraph('2. System Design Document', styles['Normal']))
+    story.append(Paragraph('3. Implementation Plan', styles['Normal']))
+    story.append(PageBreak())
+    
+    # SRS Section
+    story.append(Paragraph('1. Software Requirements Specification (SRS)', heading_style))
+    story.append(Paragraph(f'{srs.project_title}', styles['Heading2']))
+    
+    story.append(Paragraph('Overview', styles['Heading3']))
+    story.append(Paragraph(srs.overview or 'No overview provided.', styles['Normal']))
+    story.append(Spacer(1, 12))
+    
+    story.append(Paragraph('Scope', styles['Heading3']))
+    story.append(Paragraph(srs.scope or 'No scope defined.', styles['Normal']))
+    story.append(Spacer(1, 12))
+    
+    story.append(Paragraph('Functional Requirements', styles['Heading3']))
+    for req in srs.functional_requirements:
+        story.append(Paragraph(f'<b>{req["id"]}:</b> {req["description"]}', styles['Normal']))
+    story.append(Spacer(1, 12))
+    
+    story.append(Paragraph('Non-Functional Requirements', styles['Heading3']))
+    for req in srs.non_functional_requirements:
+        story.append(Paragraph(f'<b>{req["id"]} ({req["category"]}):</b> {req["description"]}', styles['Normal']))
+    story.append(Spacer(1, 12))
+    
+    story.append(Paragraph('User Stories', styles['Heading3']))
+    for story_item in srs.user_stories:
+        story.append(Paragraph(f'<b>{story_item["id"]}:</b> {story_item["story"]}', styles['Normal']))
+    story.append(Spacer(1, 12))
+    
+    story.append(Paragraph('Acceptance Criteria', styles['Heading3']))
+    for criteria in srs.acceptance_criteria:
+        story.append(Paragraph(f'• {criteria}', styles['Normal']))
+    story.append(PageBreak())
+    
+    # Design Section
+    story.append(Paragraph('2. System Design Document', heading_style))
+    
+    story.append(Paragraph('Architecture Type', styles['Heading3']))
+    story.append(Paragraph(design.architecture_type, styles['Normal']))
+    story.append(Spacer(1, 12))
+    
+    story.append(Paragraph('Components', styles['Heading3']))
+    for comp in design.components:
+        story.append(Paragraph(f'<b>{comp["name"]}:</b> {comp["description"]}', styles['Normal']))
+    story.append(Spacer(1, 12))
+    
+    story.append(Paragraph('Data Models', styles['Heading3']))
+    for model in design.data_models:
+        story.append(Paragraph(f'<b>{model["name"]}:</b> Fields: {model["fields"]}, Relationships: {model["relationships"]}', styles['Normal']))
+    story.append(Spacer(1, 12))
+    
+    story.append(Paragraph('API Endpoints', styles['Heading3']))
+    for endpoint in design.api_endpoints:
+        story.append(Paragraph(f'<b>{endpoint["method"]} {endpoint["path"]}:</b> {endpoint["description"]}', styles['Normal']))
+    story.append(Spacer(1, 12))
+    
+    story.append(Paragraph('Technology Stack', styles['Heading3']))
+    for category, techs in design.technology_stack.items():
+        story.append(Paragraph(f'<b>{category}:</b> {", ".join(techs)}', styles['Normal']))
+    story.append(Spacer(1, 12))
+    
+    story.append(Paragraph('Security Considerations', styles['Heading3']))
+    for security in design.security_considerations:
+        story.append(Paragraph(f'• {security}', styles['Normal']))
+    story.append(PageBreak())
+    
+    # Implementation Plan Section
+    story.append(Paragraph('3. Implementation Plan', heading_style))
+    
+    story.append(Paragraph('Timeline', styles['Heading3']))
+    timeline_text = f"Total Hours: {plan.timeline['total_hours']} | Total Days: {plan.timeline['total_days']} | Total Weeks: {plan.timeline['total_weeks']}"
+    story.append(Paragraph(timeline_text, styles['Normal']))
+    story.append(Spacer(1, 12))
+    
+    story.append(Paragraph('Phases', styles['Heading3']))
+    for phase in plan.phases:
+        story.append(Paragraph(f'<b>{phase["name"]}:</b> {phase["hours"]} hours ({phase["days"]} days) - {phase["description"]}', styles['Normal']))
+    story.append(Spacer(1, 12))
+    
+    story.append(Paragraph('Tasks', styles['Heading3']))
+    for task in plan.tasks:
+        story.append(Paragraph(f'<b>{task["title"]}:</b> {task["estimated_hours"]} hours - {task["description"]}', styles['Normal']))
+    story.append(Spacer(1, 12))
+    
+    story.append(Paragraph('Milestones', styles['Heading3']))
+    for milestone in plan.milestones:
+        story.append(Paragraph(f'<b>{milestone["name"]}:</b> {milestone["deliverable"]}', styles['Normal']))
+    story.append(Spacer(1, 12))
+    
+    story.append(Paragraph('Resource Allocation', styles['Heading3']))
+    story.append(Paragraph(f"Developers needed: {plan.resource_allocation['developers_needed']}", styles['Normal']))
+    story.append(Paragraph(f"Roles: {', '.join(plan.resource_allocation['roles'])}", styles['Normal']))
+    
+    # Build PDF
+    doc.build(story)
+    return buffer
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5001))
