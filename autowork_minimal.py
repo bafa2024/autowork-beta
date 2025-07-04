@@ -630,6 +630,9 @@ class AutoWorkMinimal:
                 if self.contests_enabled and cycle_count % 10 == 0:
                     self.process_contests()
                 
+                # Reset daily stats if needed
+                self.reset_daily_stats()
+                
                 # Save state
                 self.save_state_to_redis()
                 
@@ -1133,6 +1136,9 @@ class AutoWorkMinimal:
                 # Track performance
                 self.track_bid_performance(project, bid_amount, True)
                 
+                # Save recent bid info for dashboard
+                self.save_recent_bid(project, bid_amount, bid_id, True)
+                
                 # Set rate limit timestamp
                 self.set_rate_limit_timestamp()
                 
@@ -1204,6 +1210,36 @@ class AutoWorkMinimal:
         
         self.performance_data['by_hour'][hour]['bids'] += 1
         self.performance_data['by_hour'][hour]['amount'] += bid_amount
+
+    def save_recent_bid(self, project: Dict, bid_amount: float, bid_id: str, success: bool):
+        """Save recent bid information for dashboard display"""
+        if not self.redis_client:
+            return
+        
+        try:
+            bid_info = {
+                'project_id': project.get('id'),
+                'project_title': project.get('title', 'Unknown'),
+                'amount': bid_amount,
+                'bid_id': bid_id,
+                'status': 'success' if success else 'failed',
+                'timestamp': datetime.now().isoformat(),
+                'is_elite': self.is_elite_project(project),
+                'skills': ', '.join([j.get('name', '') for j in project.get('jobs', [])[:3]])
+            }
+            
+            # Save to Redis with timestamp as key for sorting
+            timestamp_key = f"bid:{datetime.now().timestamp()}"
+            self.redis_client.setex(timestamp_key, 86400, json.dumps(bid_info))  # Expire in 24 hours
+            
+            # Keep only last 20 bids
+            bid_keys = sorted(self.redis_client.keys('bid:*'), reverse=True)
+            if len(bid_keys) > 20:
+                for old_key in bid_keys[20:]:
+                    self.redis_client.delete(old_key)
+                    
+        except Exception as e:
+            logging.warning(f"Error saving recent bid: {e}")
 
     def process_contests(self):
         """Process contests if enabled"""

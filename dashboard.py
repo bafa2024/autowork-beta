@@ -41,28 +41,52 @@ def get_bot_stats():
     """Get bot statistics from Redis or default values"""
     if redis_client:
         try:
-            stats = {
-                'total_bids': int(redis_client.get('total_bids') or 0),
-                'bids_today': int(redis_client.get('bids_today') or 0),
-                'elite_bids': int(redis_client.get('elite_bids') or 0),
-                'elite_percentage': float(redis_client.get('elite_percentage') or 0),
-                'win_rate': float(redis_client.get('win_rate') or 0),
-                'last_bid_time': redis_client.get('last_bid_time') or 'Never',
-                'bot_status': redis_client.get('bot_status') or 'Unknown',
-                'bot_mode': redis_client.get('bot_mode') or 'Standard',
-                'processed_projects': int(redis_client.get('processed_projects_count') or 0),
-                'uptime': redis_client.get('bot_uptime') or 'Unknown',
-                'last_error': redis_client.get('last_error') or 'None',
-                'success_rate': float(redis_client.get('success_rate') or 0)
-            }
+            # Get basic stats that the bot actually saves
+            bid_count = int(redis_client.get('bid_count') or 0)
+            bids_today = int(redis_client.get('bids_today') or 0)
+            wins_count = int(redis_client.get('wins_count') or 0)
+            elite_bid_count = int(redis_client.get('elite_bid_count') or 0)
+            
+            # Calculate percentages
+            win_rate = (wins_count / bid_count * 100) if bid_count > 0 else 0
+            elite_percentage = (elite_bid_count / bid_count * 100) if bid_count > 0 else 0
+            success_rate = win_rate  # For now, assume success rate = win rate
+            
+            # Get processed projects count
+            processed_data = redis_client.get('processed_projects')
+            processed_count = 0
+            if processed_data:
+                try:
+                    processed_projects = json.loads(processed_data)
+                    processed_count = len(processed_projects)
+                except:
+                    processed_count = 0
             
             # Get filtered projects count
             skipped_data = redis_client.get('skipped_projects')
+            filtered_count = 0
             if skipped_data:
-                skipped = json.loads(skipped_data)
-                stats['filtered_projects'] = sum(skipped.values())
-            else:
-                stats['filtered_projects'] = 0
+                try:
+                    skipped = json.loads(skipped_data)
+                    filtered_count = sum(skipped.values())
+                except:
+                    filtered_count = 0
+            
+            # Get bot status and timing info
+            bot_status = redis_client.get('bot_status') or 'Unknown'
+            last_update = redis_client.get('last_update') or 'Never'
+            last_error = redis_client.get('last_error') or 'None'
+            
+            # Calculate uptime if start time is available
+            uptime = 'Unknown'
+            start_time = redis_client.get('bot_start_time')
+            if start_time:
+                try:
+                    start_dt = datetime.fromisoformat(start_time)
+                    uptime_delta = datetime.now() - start_dt
+                    uptime = str(uptime_delta).split('.')[0]  # Remove microseconds
+                except:
+                    uptime = 'Unknown'
             
             # Get recent bids
             recent_bids = []
@@ -70,8 +94,27 @@ def get_bot_stats():
             for key in sorted(bid_keys, reverse=True)[:10]:
                 bid_data = redis_client.get(key)
                 if bid_data:
-                    recent_bids.append(json.loads(bid_data))
-            stats['recent_bids'] = recent_bids
+                    try:
+                        recent_bids.append(json.loads(bid_data))
+                    except:
+                        continue
+            
+            stats = {
+                'total_bids': bid_count,
+                'bids_today': bids_today,
+                'elite_bids': elite_bid_count,
+                'elite_percentage': elite_percentage,
+                'win_rate': win_rate,
+                'last_bid_time': last_update,
+                'bot_status': bot_status,
+                'bot_mode': 'Ultra Simple Filtering',
+                'processed_projects': processed_count,
+                'uptime': uptime,
+                'last_error': last_error,
+                'success_rate': success_rate,
+                'filtered_projects': filtered_count,
+                'recent_bids': recent_bids
+            }
             
             return stats
         except Exception as e:
