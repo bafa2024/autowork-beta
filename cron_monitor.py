@@ -13,7 +13,7 @@ from datetime import datetime
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 
-from autowork_minimal import AutoWorkMinimal
+from autowork.core.autowork_minimal import AutoWorkMinimal
 
 # Setup logging
 logging.basicConfig(
