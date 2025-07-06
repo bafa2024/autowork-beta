@@ -1,0 +1,465 @@
+{
+  "phases": [
+    {
+      "days": 2,
+      "description": "Project setup, environment configuration, and detailed planning",
+      "duration_percent": 10,
+      "hours": 20,
+      "name": "Setup & Planning"
+    },
+    {
+      "days": 12,
+      "description": "Implementation of core features and functionality",
+      "duration_percent": 50,
+      "hours": 100,
+      "name": "Core Development"
+    },
+    {
+      "days": 6,
+      "description": "System integration, testing, and bug fixes",
+      "duration_percent": 25,
+      "hours": 50,
+      "name": "Integration & Testing"
+    },
+    {
+      "days": 3,
+      "description": "Deployment preparation, documentation, and handover",
+      "duration_percent": 15,
+      "hours": 30,
+      "name": "Deployment & Documentation"
+    }
+  ],
+  "tasks": [
+    {
+      "dependencies": [],
+      "estimated_hours": 4,
+      "id": "T001",
+      "name": "Set up development environment",
+      "phase": "Setup & Planning"
+    },
+    {
+      "dependencies": [],
+      "estimated_hours": 4,
+      "id": "T002",
+      "name": "Configure version control",
+      "phase": "Setup & Planning"
+    },
+    {
+      "dependencies": [],
+      "estimated_hours": 4,
+      "id": "T003",
+      "name": "Set up CI/CD pipeline",
+      "phase": "Setup & Planning"
+    },
+    {
+      "dependencies": [],
+      "estimated_hours": 4,
+      "id": "T004",
+      "name": "Create project documentation structure",
+      "phase": "Setup & Planning"
+    },
+    {
+      "dependencies": [],
+      "estimated_hours": 4,
+      "id": "T005",
+      "name": "Set up development database",
+      "phase": "Setup & Planning"
+    },
+    {
+      "dependencies": [
+        "T001",
+        "T002"
+      ],
+      "estimated_hours": 16,
+      "id": "T006",
+      "name": "Implement Authentication Service",
+      "phase": "Core Development"
+    },
+    {
+      "dependencies": [
+        "T001",
+        "T002"
+      ],
+      "estimated_hours": 16,
+      "id": "T007",
+      "name": "Implement Database Layer",
+      "phase": "Core Development"
+    },
+    {
+      "dependencies": [
+        "T001",
+        "T002"
+      ],
+      "estimated_hours": 16,
+      "id": "T008",
+      "name": "Implement Business Logic Layer",
+      "phase": "Core Development"
+    },
+    {
+      "dependencies": [
+        "T001",
+        "T002"
+      ],
+      "estimated_hours": 16,
+      "id": "T009",
+      "name": "Implement API Gateway",
+      "phase": "Core Development"
+    },
+    {
+      "dependencies": [
+        "T001",
+        "T002"
+      ],
+      "estimated_hours": 16,
+      "id": "T010",
+      "name": "Implement Service Registry",
+      "phase": "Core Development"
+    },
+    {
+      "dependencies": [
+        "T001",
+        "T002"
+      ],
+      "estimated_hours": 16,
+      "id": "T011",
+      "name": "Implement Message Queue",
+      "phase": "Core Development"
+    },
+    {
+      "dependencies": [
+        "T006",
+        "T007",
+        "T008"
+      ],
+      "estimated_hours": 10,
+      "id": "T012",
+      "name": "Write unit tests",
+      "phase": "Integration & Testing"
+    },
+    {
+      "dependencies": [
+        "T006",
+        "T007",
+        "T008"
+      ],
+      "estimated_hours": 10,
+      "id": "T013",
+      "name": "Perform integration testing",
+      "phase": "Integration & Testing"
+    },
+    {
+      "dependencies": [
+        "T006",
+        "T007",
+        "T008"
+      ],
+      "estimated_hours": 10,
+      "id": "T014",
+      "name": "Conduct security testing",
+      "phase": "Integration & Testing"
+    },
+    {
+      "dependencies": [
+        "T006",
+        "T007",
+        "T008"
+      ],
+      "estimated_hours": 10,
+      "id": "T015",
+      "name": "User acceptance testing",
+      "phase": "Integration & Testing"
+    },
+    {
+      "dependencies": [
+        "T006",
+        "T007",
+        "T008"
+      ],
+      "estimated_hours": 10,
+      "id": "T016",
+      "name": "Performance optimization",
+      "phase": "Integration & Testing"
+    },
+    {
+      "dependencies": [
+        "T011"
+      ],
+      "estimated_hours": 6,
+      "id": "T017",
+      "name": "Prepare production environment",
+      "phase": "Deployment & Documentation"
+    },
+    {
+      "dependencies": [
+        "T012"
+      ],
+      "estimated_hours": 6,
+      "id": "T018",
+      "name": "Create deployment scripts",
+      "phase": "Deployment & Documentation"
+    },
+    {
+      "dependencies": [
+        "T013"
+      ],
+      "estimated_hours": 6,
+      "id": "T019",
+      "name": "Write user documentation",
+      "phase": "Deployment & Documentation"
+    },
+    {
+      "dependencies": [
+        "T014"
+      ],
+      "estimated_hours": 6,
+      "id": "T020",
+      "name": "Create admin documentation",
+      "phase": "Deployment & Documentation"
+    },
+    {
+      "dependencies": [
+        "T015"
+      ],
+      "estimated_hours": 6,
+      "id": "T021",
+      "name": "Final deployment and handover",
+      "phase": "Deployment & Documentation"
+    }
+  ],
+  "milestones": [
+    {
+      "deliverable": "Development environment setup and project plan approved",
+      "name": "Project Kickoff",
+      "phase": "Setup & Planning"
+    },
+    {
+      "deliverable": "Core features implemented and functional",
+      "name": "Alpha Release",
+      "phase": "Core Development"
+    },
+    {
+      "deliverable": "All features complete with testing",
+      "name": "Beta Release",
+      "phase": "Integration & Testing"
+    },
+    {
+      "deliverable": "Final deployment with documentation",
+      "name": "Production Release",
+      "phase": "Deployment & Documentation"
+    }
+  ],
+  "dependencies": [
+    {
+      "from": "T001",
+      "to": "T006",
+      "type": "finish-to-start"
+    },
+    {
+      "from": "T002",
+      "to": "T006",
+      "type": "finish-to-start"
+    },
+    {
+      "from": "T001",
+      "to": "T007",
+      "type": "finish-to-start"
+    },
+    {
+      "from": "T002",
+      "to": "T007",
+      "type": "finish-to-start"
+    },
+    {
+      "from": "T001",
+      "to": "T008",
+      "type": "finish-to-start"
+    },
+    {
+      "from": "T002",
+      "to": "T008",
+      "type": "finish-to-start"
+    },
+    {
+      "from": "T001",
+      "to": "T009",
+      "type": "finish-to-start"
+    },
+    {
+      "from": "T002",
+      "to": "T009",
+      "type": "finish-to-start"
+    },
+    {
+      "from": "T001",
+      "to": "T010",
+      "type": "finish-to-start"
+    },
+    {
+      "from": "T002",
+      "to": "T010",
+      "type": "finish-to-start"
+    },
+    {
+      "from": "T001",
+      "to": "T011",
+      "type": "finish-to-start"
+    },
+    {
+      "from": "T002",
+      "to": "T011",
+      "type": "finish-to-start"
+    },
+    {
+      "from": "T006",
+      "to": "T012",
+      "type": "finish-to-start"
+    },
+    {
+      "from": "T007",
+      "to": "T012",
+      "type": "finish-to-start"
+    },
+    {
+      "from": "T008",
+      "to": "T012",
+      "type": "finish-to-start"
+    },
+    {
+      "from": "T006",
+      "to": "T013",
+      "type": "finish-to-start"
+    },
+    {
+      "from": "T007",
+      "to": "T013",
+      "type": "finish-to-start"
+    },
+    {
+      "from": "T008",
+      "to": "T013",
+      "type": "finish-to-start"
+    },
+    {
+      "from": "T006",
+      "to": "T014",
+      "type": "finish-to-start"
+    },
+    {
+      "from": "T007",
+      "to": "T014",
+      "type": "finish-to-start"
+    },
+    {
+      "from": "T008",
+      "to": "T014",
+      "type": "finish-to-start"
+    },
+    {
+      "from": "T006",
+      "to": "T015",
+      "type": "finish-to-start"
+    },
+    {
+      "from": "T007",
+      "to": "T015",
+      "type": "finish-to-start"
+    },
+    {
+      "from": "T008",
+      "to": "T015",
+      "type": "finish-to-start"
+    },
+    {
+      "from": "T006",
+      "to": "T016",
+      "type": "finish-to-start"
+    },
+    {
+      "from": "T007",
+      "to": "T016",
+      "type": "finish-to-start"
+    },
+    {
+      "from": "T008",
+      "to": "T016",
+      "type": "finish-to-start"
+    },
+    {
+      "from": "T011",
+      "to": "T017",
+      "type": "finish-to-start"
+    },
+    {
+      "from": "T012",
+      "to": "T018",
+      "type": "finish-to-start"
+    },
+    {
+      "from": "T013",
+      "to": "T019",
+      "type": "finish-to-start"
+    },
+    {
+      "from": "T014",
+      "to": "T020",
+      "type": "finish-to-start"
+    },
+    {
+      "from": "T015",
+      "to": "T021",
+      "type": "finish-to-start"
+    }
+  ],
+  "timeline": {
+    "phases": [
+      {
+        "days": 2,
+        "description": "Project setup, environment configuration, and detailed planning",
+        "duration_percent": 10,
+        "hours": 20,
+        "name": "Setup & Planning"
+      },
+      {
+        "days": 12,
+        "description": "Implementation of core features and functionality",
+        "duration_percent": 50,
+        "hours": 100,
+        "name": "Core Development"
+      },
+      {
+        "days": 6,
+        "description": "System integration, testing, and bug fixes",
+        "duration_percent": 25,
+        "hours": 50,
+        "name": "Integration & Testing"
+      },
+      {
+        "days": 3,
+        "description": "Deployment preparation, documentation, and handover",
+        "duration_percent": 15,
+        "hours": 30,
+        "name": "Deployment & Documentation"
+      }
+    ],
+    "start_date": "2025-07-04",
+    "total_days": 25,
+    "total_hours": 200,
+    "total_weeks": 5
+  },
+  "resource_allocation": {
+    "developers": 3,
+    "roles": [
+      "Backend Developer",
+      "Project Manager",
+      "DevOps Engineer",
+      "QA Engineer",
+      "API Architect"
+    ],
+    "tools": [
+      "Git",
+      "Jenkins/GitHub Actions",
+      "Jest/Pytest",
+      "Postman"
+    ]
+  }
+}

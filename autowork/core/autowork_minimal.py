@@ -1088,6 +1088,23 @@ class AutoWorkMinimal:
                 logging.warning("Rate limit detected - waiting before placing bid...")
                 time.sleep(60)  # Wait 1 minute if rate limited
             
+            # Get project details to check for NDA/IP requirements
+            project_details = self.get_project_details(project)
+            
+            # Check and sign NDA if required
+            if project_details.get('nda', False):
+                logging.info(f"📋 Project {project_id} requires NDA - checking status...")
+                if not self.check_and_sign_nda(project_id):
+                    logging.error(f"❌ Failed to handle NDA for project {project_id} - skipping bid")
+                    return False
+            
+            # Check and sign IP agreement if required
+            if project_details.get('ip_contract', False):
+                logging.info(f"📋 Project {project_id} requires IP agreement - checking status...")
+                if not self.check_and_sign_ip_agreement(project_id):
+                    logging.error(f"❌ Failed to handle IP agreement for project {project_id} - skipping bid")
+                    return False
+            
             # Calculate bid amount
             bid_amount = self.calculate_bid_amount(project)
             
@@ -1295,6 +1312,132 @@ class AutoWorkMinimal:
         except Exception as e:
             logging.warning(f"Error in simple client analysis: {e}")
             return {'is_good_client': True, 'reason': 'Analysis failed - allowing'}
+
+    def check_and_sign_nda(self, project_id: int) -> bool:
+        """Check and sign NDA for a project if required and unsigned"""
+        try:
+            # Check if auto-sign NDA is enabled
+            if not self.config.get('elite_projects', {}).get('auto_sign_nda', False):
+                logging.info(f"Auto-sign NDA is disabled for project {project_id}")
+                return True  # Return True to continue with bidding
+            
+            # Check NDA status
+            endpoint = f"{self.api_base}/projects/0.1/projects/{project_id}/nda"
+            response = requests.get(endpoint, headers=self.headers)
+            
+            if response.status_code == 200:
+                data = response.json()
+                result = data.get('result', {})
+                status = result.get('status', 'unknown')
+                
+                logging.info(f"📋 NDA Status for project {project_id}: {status}")
+                
+                if status == 'unsigned':
+                    logging.info(f"🖊️  Attempting to sign NDA for project {project_id}...")
+                    
+                    # Sign NDA
+                    sign_endpoint = f"{self.api_base}/projects/0.1/projects/{project_id}/nda/sign"
+                    sign_response = requests.post(sign_endpoint, headers=self.headers, json={})
+                    
+                    if sign_response.status_code in [200, 201]:
+                        logging.info(f"✅ Successfully signed NDA for project {project_id}")
+                        self.nda_signed_projects.add(project_id)
+                        return True
+                    else:
+                        logging.error(f"❌ Failed to sign NDA for project {project_id}: {sign_response.status_code}")
+                        logging.error(f"Response: {sign_response.text}")
+                        return False
+                elif status == 'signed':
+                    logging.info(f"✅ NDA already signed for project {project_id}")
+                    self.nda_signed_projects.add(project_id)
+                    return True
+                else:
+                    logging.info(f"ℹ️  NDA status for project {project_id}: {status}")
+                    return True
+                    
+            elif response.status_code == 404:
+                logging.info(f"ℹ️  No NDA required for project {project_id}")
+                return True
+            else:
+                logging.error(f"❌ Error checking NDA for project {project_id}: {response.status_code}")
+                return False
+                
+        except Exception as e:
+            logging.error(f"❌ Exception checking/signing NDA for project {project_id}: {e}")
+            return False
+
+    def check_and_sign_ip_agreement(self, project_id: int) -> bool:
+        """Check and sign IP agreement for a project if required and unsigned"""
+        try:
+            # Check if auto-sign IP agreement is enabled
+            if not self.config.get('elite_projects', {}).get('auto_sign_ip_agreement', False):
+                logging.info(f"Auto-sign IP agreement is disabled for project {project_id}")
+                return True  # Return True to continue with bidding
+            
+            # Check IP agreement status
+            endpoint = f"{self.api_base}/projects/0.1/projects/{project_id}/ip_contract"
+            response = requests.get(endpoint, headers=self.headers)
+            
+            if response.status_code == 200:
+                data = response.json()
+                result = data.get('result', {})
+                status = result.get('status', 'unknown')
+                
+                logging.info(f"📋 IP Agreement Status for project {project_id}: {status}")
+                
+                if status == 'unsigned':
+                    logging.info(f"🖊️  Attempting to sign IP agreement for project {project_id}...")
+                    
+                    # Sign IP agreement
+                    sign_endpoint = f"{self.api_base}/projects/0.1/projects/{project_id}/ip_contract/sign"
+                    sign_response = requests.post(sign_endpoint, headers=self.headers, json={})
+                    
+                    if sign_response.status_code in [200, 201]:
+                        logging.info(f"✅ Successfully signed IP agreement for project {project_id}")
+                        self.ip_signed_projects.add(project_id)
+                        return True
+                    else:
+                        logging.error(f"❌ Failed to sign IP agreement for project {project_id}: {sign_response.status_code}")
+                        logging.error(f"Response: {sign_response.text}")
+                        return False
+                elif status == 'signed':
+                    logging.info(f"✅ IP agreement already signed for project {project_id}")
+                    self.ip_signed_projects.add(project_id)
+                    return True
+                else:
+                    logging.info(f"ℹ️  IP agreement status for project {project_id}: {status}")
+                    return True
+                    
+            elif response.status_code == 404:
+                logging.info(f"ℹ️  No IP agreement required for project {project_id}")
+                return True
+            else:
+                logging.error(f"❌ Error checking IP agreement for project {project_id}: {response.status_code}")
+                return False
+                
+        except Exception as e:
+            logging.error(f"❌ Exception checking/signing IP agreement for project {project_id}: {e}")
+            return False
+
+    def get_project_details(self, project: Dict) -> Dict:
+        """Extract detailed information about a project"""
+        upgrades = project.get('upgrades', {})
+        
+        details = {
+            'id': project['id'],
+            'title': project['title'],
+            'featured': upgrades.get('featured', False),
+            'sealed': upgrades.get('sealed', False),
+            'nda': upgrades.get('NDA', False),
+            'ip_contract': upgrades.get('ip_contract', False),
+            'non_compete': upgrades.get('non_compete', False),
+            'urgent': upgrades.get('urgent', False),
+            'qualified': upgrades.get('qualified', False),
+            'budget': project.get('budget', {}),
+            'url': f"https://www.freelancer.com/projects/{project.get('seo_url', '')}"
+        }
+        
+        return details
 
 if __name__ == "__main__":
     bot = AutoWorkMinimal()

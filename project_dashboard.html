@@ -663,6 +663,26 @@
                 </div>
             </div>
 
+            <!-- Task Breakdown -->
+            <div class="card" style="margin-top: 1.5rem;">
+                <div class="card-header">
+                    <h3 class="card-title">Task Breakdown</h3>
+                </div>
+                <div class="card-body">
+                    <div id="task-breakdown-content"></div>
+                </div>
+            </div>
+
+            <!-- Versioned Releases -->
+            <div class="card" style="margin-top: 1.5rem;">
+                <div class="card-header">
+                    <h3 class="card-title">Versioned Product Releases</h3>
+                </div>
+                <div class="card-body">
+                    <div id="versioned-releases-content"></div>
+                </div>
+            </div>
+
             <!-- SRS Document -->
             <div class="card" style="margin-top: 1.5rem;">
                 <div class="card-header">
@@ -683,6 +703,16 @@
                 </div>
             </div>
 
+            <!-- UI Design Document -->
+            <div class="card" style="margin-top: 1.5rem;">
+                <div class="card-header">
+                    <h3 class="card-title">UI Design Document</h3>
+                </div>
+                <div class="card-body">
+                    <div id="ui-design-content"></div>
+                </div>
+            </div>
+
             <!-- Implementation Plan -->
             <div class="card" style="margin-top: 1.5rem;">
                 <div class="card-header">
@@ -690,6 +720,36 @@
                 </div>
                 <div class="card-body">
                     <div id="plan-content"></div>
+                </div>
+            </div>
+
+            <!-- Implementation Tools -->
+            <div class="card" style="margin-top: 1.5rem;">
+                <div class="card-header">
+                    <h3 class="card-title">Implementation Tools & Resources</h3>
+                </div>
+                <div class="card-body">
+                    <div id="tools-content"></div>
+                </div>
+            </div>
+
+            <!-- Coding Prompts -->
+            <div class="card" style="margin-top: 1.5rem;">
+                <div class="card-header">
+                    <h3 class="card-title">Coding Prompts for LLMs</h3>
+                </div>
+                <div class="card-body">
+                    <div id="coding-prompts-content"></div>
+                </div>
+            </div>
+
+            <!-- Testing Prompts -->
+            <div class="card" style="margin-top: 1.5rem;">
+                <div class="card-header">
+                    <h3 class="card-title">Testing Prompts for LLMs</h3>
+                </div>
+                <div class="card-body">
+                    <div id="testing-prompts-content"></div>
                 </div>
             </div>
         </div>
@@ -1676,11 +1736,183 @@
             // Display Design
             displayDesign(data.design);
             
+            // Display UI Design
+            displayUIDesign(data.ui_design);
+
+            // Display Task Breakdown
+            displayTaskBreakdown(data.task_breakdowns);
+            
+            // Display Versioned Releases
+            displayVersionedReleases(data.versioned_releases);
+
             // Display Implementation Plan
             displayImplementationPlan(data.implementation_plan);
             
+            // Display Implementation Tools
+            displayImplementationTools(data.implementation_tools);
+            
+            // Display Coding Prompts
+            displayCodingPrompts(data.coding_prompts);
+            
+            // Display Testing Prompts
+            displayTestingPrompts(data.testing_prompts);
+            
             // Scroll to results
             resultsDiv.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // Display Task Breakdown
+        function displayTaskBreakdown(taskBreakdowns) {
+            const breakdownDiv = document.getElementById('task-breakdown-content');
+            
+            if (!taskBreakdowns || taskBreakdowns.length === 0) {
+                breakdownDiv.innerHTML = '<p>No task breakdown available.</p>';
+                return;
+            }
+            
+            breakdownDiv.innerHTML = `
+                <div style="margin-bottom: 1rem;">
+                    <h4>Total Requirements: ${taskBreakdowns.length}</h4>
+                    <h4>Total Tasks: ${taskBreakdowns.reduce((sum, bd) => sum + bd.tasks.length, 0)}</h4>
+                    <h4>Total Estimated Hours: ${taskBreakdowns.reduce((sum, bd) => sum + bd.estimated_hours, 0)}</h4>
+                </div>
+                
+                ${taskBreakdowns.map(breakdown => `
+                    <div style="margin-bottom: 2rem; padding: 1rem; background: #f9fafb; border-radius: 6px; border-left: 4px solid #3b82f6;">
+                        <h5 style="margin: 0 0 0.5rem 0; color: #1f2937;">
+                            ${breakdown.requirement_id}: ${breakdown.requirement_description}
+                        </h5>
+                        <div style="display: flex; gap: 1rem; margin-bottom: 1rem; font-size: 0.875rem;">
+                            <span style="background: #dbeafe; color: #1e40af; padding: 0.25rem 0.5rem; border-radius: 4px;">
+                                Priority: ${breakdown.priority}
+                            </span>
+                            <span style="background: #fef3c7; color: #92400e; padding: 0.25rem 0.5rem; border-radius: 4px;">
+                                Complexity: ${breakdown.complexity}
+                            </span>
+                            <span style="background: #dcfce7; color: #166534; padding: 0.25rem 0.5rem; border-radius: 4px;">
+                                Hours: ${breakdown.estimated_hours}
+                            </span>
+                        </div>
+                        
+                        <h6 style="margin: 0.5rem 0;">Tasks (${breakdown.tasks.length}):</h6>
+                        <div style="margin-left: 1rem;">
+                            ${breakdown.tasks.map(task => `
+                                <div style="margin-bottom: 0.5rem; padding: 0.5rem; background: white; border-radius: 4px; border: 1px solid #e5e7eb;">
+                                    <div style="font-weight: 600; color: #374151;">${task.title}</div>
+                                    <div style="font-size: 0.875rem; color: #6b7280; margin-top: 0.25rem;">${task.description}</div>
+                                    <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem; font-size: 0.75rem;">
+                                        <span style="background: #f3f4f6; padding: 0.125rem 0.375rem; border-radius: 3px;">${task.type}</span>
+                                        <span style="background: #f3f4f6; padding: 0.125rem 0.375rem; border-radius: 3px;">${task.estimated_hours}h</span>
+                                        <span style="background: #f3f4f6; padding: 0.125rem 0.375rem; border-radius: 3px;">${task.complexity}</span>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                        
+                        ${breakdown.dependencies.length > 0 ? `
+                            <h6 style="margin: 0.5rem 0;">Dependencies:</h6>
+                            <div style="margin-left: 1rem;">
+                                ${breakdown.dependencies.map(dep => 
+                                    `<span style="background: #fef2f2; color: #991b1b; padding: 0.25rem 0.5rem; border-radius: 4px; margin-right: 0.5rem;">${dep}</span>`
+                                ).join('')}
+                            </div>
+                        ` : ''}
+                    </div>
+                `).join('')}
+            `;
+        }
+
+        // Display Versioned Releases
+        function displayVersionedReleases(versionedReleases) {
+            const releasesDiv = document.getElementById('versioned-releases-content');
+            
+            if (!versionedReleases || versionedReleases.length === 0) {
+                releasesDiv.innerHTML = '<p>No versioned releases available.</p>';
+                return;
+            }
+            
+            releasesDiv.innerHTML = `
+                <div style="margin-bottom: 1rem;">
+                    <h4>Total Versions: ${versionedReleases.length}</h4>
+                    <h4>Total Features: ${versionedReleases.reduce((sum, vr) => sum + vr.features.length, 0)}</h4>
+                    <h4>Total Tasks: ${versionedReleases.reduce((sum, vr) => sum + vr.tasks.length, 0)}</h4>
+                </div>
+                
+                ${versionedReleases.map(release => `
+                    <div style="margin-bottom: 2rem; padding: 1.5rem; background: #f9fafb; border-radius: 8px; border: 2px solid #e5e7eb;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                            <h5 style="margin: 0; color: #1f2937; font-size: 1.25rem;">
+                                ${release.version} - ${release.name}
+                            </h5>
+                            <span style="background: #3b82f6; color: white; padding: 0.5rem 1rem; border-radius: 6px; font-weight: 600;">
+                                ${release.estimated_hours}h
+                            </span>
+                        </div>
+                        
+                        <p style="color: #6b7280; margin-bottom: 1rem;">${release.description}</p>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                            <div>
+                                <h6 style="margin: 0 0 0.5rem 0; color: #374151;">Features (${release.features.length})</h6>
+                                <div style="max-height: 200px; overflow-y: auto;">
+                                    ${release.features.map(feature => `
+                                        <div style="padding: 0.5rem; background: white; border-radius: 4px; margin-bottom: 0.5rem; border-left: 3px solid #10b981;">
+                                            <div style="font-weight: 600; font-size: 0.875rem;">${feature.name}</div>
+                                            <div style="font-size: 0.75rem; color: #6b7280;">${feature.description}</div>
+                                            <span style="background: #f3f4f6; padding: 0.125rem 0.375rem; border-radius: 3px; font-size: 0.75rem;">${feature.type}</span>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <h6 style="margin: 0 0 0.5rem 0; color: #374151;">Tasks (${release.tasks.length})</h6>
+                                <div style="max-height: 200px; overflow-y: auto;">
+                                    ${release.tasks.map(task => `
+                                        <div style="padding: 0.5rem; background: white; border-radius: 4px; margin-bottom: 0.5rem; border-left: 3px solid #f59e0b;">
+                                            <div style="font-weight: 600; font-size: 0.875rem;">${task.title}</div>
+                                            <div style="font-size: 0.75rem; color: #6b7280;">${task.estimated_hours}h • ${task.type}</div>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div style="display: flex; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap;">
+                            ${release.dependencies.length > 0 ? `
+                                <div>
+                                    <h6 style="margin: 0 0 0.25rem 0; font-size: 0.875rem;">Dependencies:</h6>
+                                    ${release.dependencies.map(dep => 
+                                        `<span style="background: #fef2f2; color: #991b1b; padding: 0.25rem 0.5rem; border-radius: 4px; margin-right: 0.5rem; font-size: 0.75rem;">${dep}</span>`
+                                    ).join('')}
+                                </div>
+                            ` : ''}
+                        </div>
+                        
+                        <details style="margin-top: 1rem;">
+                            <summary style="cursor: pointer; font-weight: 600; color: #374151;">Release Criteria & Testing</summary>
+                            <div style="margin-top: 0.5rem; padding: 1rem; background: white; border-radius: 4px;">
+                                <h6 style="margin: 0 0 0.5rem 0;">Release Criteria:</h6>
+                                <ul style="margin: 0 0 1rem 0; padding-left: 1.5rem;">
+                                    ${release.release_criteria.map(criteria => `<li>${criteria}</li>`).join('')}
+                                </ul>
+                                
+                                <h6 style="margin: 0 0 0.5rem 0;">Testing Requirements:</h6>
+                                <ul style="margin: 0; padding-left: 1.5rem;">
+                                    ${release.testing_requirements.map(req => `<li>${req}</li>`).join('')}
+                                </ul>
+                            </div>
+                        </details>
+                        
+                        <details style="margin-top: 0.5rem;">
+                            <summary style="cursor: pointer; font-weight: 600; color: #374151;">Deployment Notes</summary>
+                            <div style="margin-top: 0.5rem; padding: 1rem; background: white; border-radius: 4px; font-family: monospace; font-size: 0.875rem; white-space: pre-wrap;">
+                                ${release.deployment_notes}
+                            </div>
+                        </details>
+                    </div>
+                `).join('')}
+            `;
         }
 
         // Display SRS Document
@@ -1765,6 +1997,97 @@
             `;
         }
 
+        // Display UI Design Document
+        function displayUIDesign(uiDesign) {
+            const uiDesignDiv = document.getElementById('ui-design-content');
+            uiDesignDiv.innerHTML = `
+                <h4>Design System</h4>
+                <div style="margin-bottom: 1rem;">
+                    ${Object.entries(uiDesign.design_system).map(([key, value]) => 
+                        `<div><strong>${key.replace('_', ' ').toUpperCase()}:</strong> ${value}</div>`
+                    ).join('')}
+                </div>
+                
+                <h4>Page Layouts</h4>
+                <ul>
+                    ${uiDesign.page_layouts.map(layout => 
+                        `<li><strong>${layout.name}:</strong> ${layout.type} - ${layout.description}</li>`
+                    ).join('')}
+                </ul>
+                
+                <h4>UI Components</h4>
+                <ul>
+                    ${uiDesign.components.map(comp => 
+                        `<li><strong>${comp.name}:</strong> ${comp.type} - ${comp.description}</li>`
+                    ).join('')}
+                </ul>
+                
+                <h4>Wireframes</h4>
+                <ul>
+                    ${uiDesign.wireframes.map(wireframe => 
+                        `<li><strong>${wireframe.page}:</strong> ${wireframe.layout_type} - ${wireframe.description}</li>`
+                    ).join('')}
+                </ul>
+                
+                <h4>Responsive Breakpoints</h4>
+                <ul>
+                    ${uiDesign.responsive_breakpoints.map(breakpoint => 
+                        `<li>${breakpoint}</li>`
+                    ).join('')}
+                </ul>
+                
+                <h4>Accessibility Features</h4>
+                <ul>
+                    ${uiDesign.accessibility_features.map(feature => 
+                        `<li>${feature}</li>`
+                    ).join('')}
+                </ul>
+                
+                <h4>CSS Framework</h4>
+                <p>${uiDesign.css_framework}</p>
+                
+                <h4>JavaScript Libraries</h4>
+                <ul>
+                    ${uiDesign.javascript_libraries.map(library => 
+                        `<li>${library}</li>`
+                    ).join('')}
+                </ul>
+                
+                <h4>Interactive Elements</h4>
+                <ul>
+                    ${uiDesign.interactive_elements.map(element => 
+                        `<li><strong>${element.name}:</strong> ${element.type} - ${element.description}</li>`
+                    ).join('')}
+                </ul>
+                
+                <h4>UI Generation Prompts for LLMs</h4>
+                <div style="margin-top: 1rem;">
+                    ${uiDesign.html_templates.map(template => `
+                        <div style="margin-bottom: 1.5rem; padding: 1rem; background: #f9fafb; border-radius: 6px;">
+                            <h5>${template.page}</h5>
+                            <p><strong>CSS Framework:</strong> ${template.css_framework}</p>
+                            <details open>
+                                <summary>View Prompt</summary>
+                                <pre style="background: #1f2937; color: #f9fafb; padding: 1rem; border-radius: 4px; overflow-x: auto; margin-top: 0.5rem; position: relative;"><code id="prompt-${template.page.replace(/\s+/g, '-').toLowerCase()}">${template.prompt}</code></pre>
+                                <button onclick="copyPrompt('prompt-${template.page.replace(/\s+/g, '-').toLowerCase()}')" style="margin-top: 0.5rem; background: #3b82f6; color: white; border: none; border-radius: 4px; padding: 0.25rem 0.75rem; cursor: pointer;">Copy Prompt</button>
+                            </details>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        // Copy prompt to clipboard
+        function copyPrompt(elementId) {
+            const codeElem = document.getElementById(elementId);
+            if (codeElem) {
+                const text = codeElem.textContent;
+                navigator.clipboard.writeText(text).then(() => {
+                    showNotification('✅ Prompt copied to clipboard!', 'success');
+                });
+            }
+        }
+
         // Display Implementation Plan
         function displayImplementationPlan(plan) {
             const planDiv = document.getElementById('plan-content');
@@ -1796,6 +2119,110 @@
                 <h4>Resource Allocation</h4>
                 <p>Developers needed: ${plan.resource_allocation.developers_needed}</p>
                 <p>Roles: ${plan.resource_allocation.roles.join(', ')}</p>
+            `;
+        }
+
+        // Display Implementation Tools
+        function displayImplementationTools(tools) {
+            const toolsDiv = document.getElementById('tools-content');
+            
+            if (!tools) {
+                toolsDiv.innerHTML = '<p style="color: var(--gray);">No tools data available</p>';
+                return;
+            }
+            
+            toolsDiv.innerHTML = `
+                <div style="display: grid; gap: 1.5rem;">
+                    <div>
+                        <h4>🛠️ Development Tools</h4>
+                        <ul>
+                            ${tools.development_tools?.map(tool => 
+                                `<li><a href="${tool.url}" target="_blank" style="color: #3b82f6; text-decoration: none;">${tool.name}</a> - ${tool.description}</li>`
+                            ).join('') || '<li>No development tools specified</li>'}
+                        </ul>
+                    </div>
+                    
+                    <div>
+                        <h4>⚡ Frameworks</h4>
+                        <ul>
+                            ${tools.frameworks?.map(framework => 
+                                `<li><a href="${framework.url}" target="_blank" style="color: #3b82f6; text-decoration: none;">${framework.name}</a> - ${framework.description}</li>`
+                            ).join('') || '<li>No frameworks specified</li>'}
+                        </ul>
+                    </div>
+                    
+                    <div>
+                        <h4>🗄️ Databases</h4>
+                        <ul>
+                            ${tools.databases?.map(db => 
+                                `<li><a href="${db.url}" target="_blank" style="color: #3b82f6; text-decoration: none;">${db.name}</a> - ${db.description}</li>`
+                            ).join('') || '<li>No databases specified</li>'}
+                        </ul>
+                    </div>
+                    
+                    <div>
+                        <h4>☁️ Cloud Services</h4>
+                        <ul>
+                            ${tools.cloud_services?.map(service => 
+                                `<li><a href="${service.url}" target="_blank" style="color: #3b82f6; text-decoration: none;">${service.name}</a> - ${service.description}</li>`
+                            ).join('') || '<li>No cloud services specified</li>'}
+                        </ul>
+                    </div>
+                    
+                    <div>
+                        <h4>🚀 DevOps Tools</h4>
+                        <ul>
+                            ${tools.devops_tools?.map(tool => 
+                                `<li><a href="${tool.url}" target="_blank" style="color: #3b82f6; text-decoration: none;">${tool.name}</a> - ${tool.description}</li>`
+                            ).join('') || '<li>No DevOps tools specified</li>'}
+                        </ul>
+                    </div>
+                    
+                    <div>
+                        <h4>🧪 Testing Tools</h4>
+                        <ul>
+                            ${tools.testing_tools?.map(tool => 
+                                `<li><a href="${tool.url}" target="_blank" style="color: #3b82f6; text-decoration: none;">${tool.name}</a> - ${tool.description}</li>`
+                            ).join('') || '<li>No testing tools specified</li>'}
+                        </ul>
+                    </div>
+                    
+                    <div>
+                        <h4>📊 Monitoring Tools</h4>
+                        <ul>
+                            ${tools.monitoring_tools?.map(tool => 
+                                `<li><a href="${tool.url}" target="_blank" style="color: #3b82f6; text-decoration: none;">${tool.name}</a> - ${tool.description}</li>`
+                            ).join('') || '<li>No monitoring tools specified</li>'}
+                        </ul>
+                    </div>
+                    
+                    <div>
+                        <h4>🔒 Security Tools</h4>
+                        <ul>
+                            ${tools.security_tools?.map(tool => 
+                                `<li><a href="${tool.url}" target="_blank" style="color: #3b82f6; text-decoration: none;">${tool.name}</a> - ${tool.description}</li>`
+                            ).join('') || '<li>No security tools specified</li>'}
+                        </ul>
+                    </div>
+                    
+                    <div>
+                        <h4>👥 Collaboration Tools</h4>
+                        <ul>
+                            ${tools.collaboration_tools?.map(tool => 
+                                `<li><a href="${tool.url}" target="_blank" style="color: #3b82f6; text-decoration: none;">${tool.name}</a> - ${tool.description}</li>`
+                            ).join('') || '<li>No collaboration tools specified</li>'}
+                        </ul>
+                    </div>
+                    
+                    <div>
+                        <h4>📚 Learning Resources</h4>
+                        <ul>
+                            ${tools.learning_resources?.map(resource => 
+                                `<li><a href="${resource.url}" target="_blank" style="color: #3b82f6; text-decoration: none;">${resource.name}</a> - ${resource.description}</li>`
+                            ).join('') || '<li>No learning resources specified</li>'}
+                        </ul>
+                    </div>
+                </div>
             `;
         }
 
@@ -1939,7 +2366,14 @@
                     body: JSON.stringify({
                         srs: sdlcResults.srs,
                         design: sdlcResults.design,
+                        ui_design: sdlcResults.ui_design,
+                        task_breakdowns: sdlcResults.task_breakdowns,
+                        versioned_releases: sdlcResults.versioned_releases,
                         implementation_plan: sdlcResults.implementation_plan,
+                        implementation_tools: sdlcResults.implementation_tools,
+                        test_plan: sdlcResults.test_plan,
+                        deployment_plan: sdlcResults.deployment_plan,
+                        maintenance_plan: sdlcResults.maintenance_plan,
                         format: format,
                         project_title: projectTitle
                     })
@@ -1977,6 +2411,50 @@
                 showNotification(`❌ Failed to export ${format.toUpperCase()} document`, 'error');
             }
         }
+
+        // Display Coding Prompts
+        function displayCodingPrompts(prompts) {
+            const codingDiv = document.getElementById('coding-prompts-content');
+            if (!prompts || prompts.length === 0) {
+                codingDiv.innerHTML = '<p style="color: var(--gray);">No coding prompts available</p>';
+                return;
+            }
+            codingDiv.innerHTML = prompts.map((p, i) => `
+                <div style="margin-bottom: 1.5rem; padding: 1rem; background: #f3f4f6; border-radius: 6px;">
+                    <h5>${p.type === 'frontend' ? 'Frontend' : 'Backend/API'}: <span style="color:#3b82f6;">${p.target}</span></h5>
+                    <details open>
+                        <summary>View Prompt</summary>
+                        <pre style="background: #1f2937; color: #f9fafb; padding: 1rem; border-radius: 4px; overflow-x: auto; margin-top: 0.5rem; position: relative;"><code id="coding-prompt-${i}">${p.prompt}</code></pre>
+                        <button onclick="copyPrompt('coding-prompt-${i}')" style="margin-top: 0.5rem; background: #3b82f6; color: white; border: none; border-radius: 4px; padding: 0.25rem 0.75rem; cursor: pointer;">Copy Prompt</button>
+                    </details>
+                </div>
+            `).join('');
+        }
+
+        // Display Testing Prompts
+        function displayTestingPrompts(prompts) {
+            const testingDiv = document.getElementById('testing-prompts-content');
+            if (!prompts || prompts.length === 0) {
+                testingDiv.innerHTML = '<p style="color: var(--gray);">No testing prompts available</p>';
+                return;
+            }
+            testingDiv.innerHTML = prompts.map((p, i) => `
+                <div style="margin-bottom: 1.5rem; padding: 1rem; background: #f3f4f6; border-radius: 6px;">
+                    <h5>${p.type.toUpperCase()}: <span style="color:#10b981;">${p.target}</span></h5>
+                    <details open>
+                        <summary>View Prompt</summary>
+                        <pre style="background: #1f2937; color: #f9fafb; padding: 1rem; border-radius: 4px; overflow-x: auto; margin-top: 0.5rem; position: relative;"><code id="testing-prompt-${i}">${p.prompt}</code></pre>
+                        <button onclick="copyPrompt('testing-prompt-${i}')" style="margin-top: 0.5rem; background: #10b981; color: white; border: none; border-radius: 4px; padding: 0.25rem 0.75rem; cursor: pointer;">Copy Prompt</button>
+                    </details>
+                </div>
+            `).join('');
+        }
+
+        // ...existing copyPrompt function...
+
+        // After SDLC analysis, call these:
+        // displayCodingPrompts(data.coding_prompts);
+        // displayTestingPrompts(data.testing_prompts);
     </script>
 </body>
 </html>
