@@ -1181,13 +1181,18 @@ class AutoWorkMinimal:
             return False
 
     def calculate_bid_amount(self, project: Dict) -> float:
-        """Calculate appropriate bid amount - always bid at minimum budget"""
+        """Calculate appropriate bid amount - always bid at minimum budget in original currency"""
         budget = project.get('budget', {})
         min_budget = float(budget.get('minimum', 0))
         currency_code = project.get('currency', {}).get('code', 'USD')
         
-        # Convert to USD if needed
-        if self.currency_converter and currency_code != 'USD':
+        # For INR and PKR projects, bid at the minimum budget in the original currency
+        # For other currencies, convert to USD if needed
+        if currency_code in ['INR', 'PKR']:
+            # Bid at minimum budget in original currency (INR or PKR)
+            return min_budget
+        elif self.currency_converter and currency_code != 'USD':
+            # For other currencies, convert to USD
             min_budget = self.currency_converter.to_usd(min_budget, currency_code)
         
         # Always bid at the minimum budget amount
