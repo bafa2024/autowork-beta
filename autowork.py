@@ -197,10 +197,12 @@ class AutoWork:
             await session.commit()
     
     def calculate_bid_amount(self, project: Dict) -> float:
-        """Calculate appropriate bid amount - always bid at minimum budget"""
+        """Calculate appropriate bid amount - always bid at minimum budget in original currency"""
         budget_min = project.get("budget", {}).get("minimum", 0)
+        currency_code = project.get("currency", {}).get("code", "USD")
         
-        # Always bid at the minimum budget amount
+        # Always bid at the minimum budget amount in the original currency
+        # No currency conversion - bid in the same currency as the project
         return budget_min
     
     def generate_bid_description(self, project: Dict) -> str:

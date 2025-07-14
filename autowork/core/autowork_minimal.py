@@ -1186,16 +1186,8 @@ class AutoWorkMinimal:
         min_budget = float(budget.get('minimum', 0))
         currency_code = project.get('currency', {}).get('code', 'USD')
         
-        # For INR and PKR projects, bid at the minimum budget in the original currency
-        # For other currencies, convert to USD if needed
-        if currency_code in ['INR', 'PKR']:
-            # Bid at minimum budget in original currency (INR or PKR)
-            return min_budget
-        elif self.currency_converter and currency_code != 'USD':
-            # For other currencies, convert to USD
-            min_budget = self.currency_converter.to_usd(min_budget, currency_code)
-        
-        # Always bid at the minimum budget amount
+        # Always bid at the minimum budget amount in the original currency
+        # No currency conversion - bid in the same currency as the project
         return min_budget
 
     def select_bid_message(self, project: Dict) -> str:
